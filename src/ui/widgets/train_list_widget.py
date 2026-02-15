@@ -13,6 +13,7 @@ from ...models.train_data import TrainData
 from .train_widgets_base import BaseTrainWidget
 from .custom_scroll_bar import CustomScrollBar
 from .train_item_widget import TrainItemWidget
+from .train_list_theme import scroll_area_stylesheet, theme_colors
 
 logger = logging.getLogger(__name__)
 
@@ -90,78 +91,8 @@ class TrainListWidget(QScrollArea):
 
     def _apply_theme_styles(self) -> None:
         """Apply theme styling to the scroll area."""
-        colors = self.get_theme_colors(self.current_theme)
-        
-        # FORCE light theme styling when in light mode
-        if self.current_theme == "light":
-            style = f"""
-            QScrollArea {{
-                border: 1px solid #e0e0e0 !important;
-                border-radius: 8px !important;
-                background-color: #ffffff !important;
-            }}
-            
-            QWidget {{
-                background-color: #ffffff !important;
-            }}
-            
-            QScrollBar:vertical {{
-                background-color: #f5f5f5 !important;
-                width: 12px !important;
-                border-radius: 6px !important;
-                margin: 0px !important;
-            }}
-            
-            QScrollBar::handle:vertical {{
-                background-color: #e0e0e0 !important;
-                border-radius: 6px !important;
-                min-height: 20px !important;
-                margin: 2px !important;
-            }}
-            
-            QScrollBar::handle:vertical:hover {{
-                background-color: #d0d0d0 !important;
-            }}
-            
-            QScrollBar::add-line:vertical,
-            QScrollBar::sub-line:vertical {{
-                height: 0px !important;
-            }}
-            """
-        else:
-            # Dark theme styling
-            style = f"""
-            QScrollArea {{
-                border: 1px solid {colors['border_primary']};
-                border-radius: 8px;
-                background-color: {colors['background_primary']};
-            }}
-            
-            QScrollBar:vertical {{
-                background-color: {colors['background_secondary']};
-                width: 12px;
-                border-radius: 6px;
-                margin: 0px;
-            }}
-            
-            QScrollBar::handle:vertical {{
-                background-color: {colors['border_secondary']};
-                border-radius: 6px;
-                min-height: 20px;
-                margin: 2px;
-            }}
-            
-            QScrollBar::handle:vertical:hover {{
-                background-color: {colors['background_hover']};
-            }}
-            
-            QScrollBar::add-line:vertical,
-            QScrollBar::sub-line:vertical {{
-                height: 0px;
-            }}
-            """
-        
-        self.setStyleSheet(style)
+        colors = theme_colors(self.current_theme)
+        self.setStyleSheet(scroll_area_stylesheet(self.current_theme, colors))
 
         # Update custom scroll bar theme
         if hasattr(self, 'custom_scroll_bar'):
@@ -188,9 +119,13 @@ class TrainListWidget(QScrollArea):
             if not self.isVisible():
                 logger.debug("WARNING - Widget not visible during update!")
             
+            # Some startup paths can deliver `trains_updated` before the main window
+            # is shown. In that case the widget may not have a visible parent yet.
+            # Do not drop the update; rendering into the container is still safe.
             if self.parent() is None:
-                logger.debug("CRITICAL - Widget has no parent during update!")
-                return
+                logger.debug(
+                    "Widget has no parent during update (startup timing). Continuing update."
+                )
             
             # Clear existing items
             logger.debug("About to clear existing trains")
@@ -519,43 +454,9 @@ class TrainListWidget(QScrollArea):
             self.custom_scroll_bar.setVisible(False)
 
     def get_theme_colors(self, theme: str) -> dict:
-        """
-        Get theme-specific color palette.
-        
-        Args:
-            theme: Theme name ("dark" or "light")
-            
-        Returns:
-            Dictionary of color names to hex values
-        """
-        if theme == "dark":
-            return {
-                "background_primary": "#1a1a1a",
-                "background_secondary": "#2d2d2d",
-                "background_hover": "#404040",
-                "text_primary": "#ffffff",
-                "text_secondary": "#b0b0b0",
-                "primary_accent": "#1976d2",
-                "border_primary": "#404040",
-                "border_secondary": "#555555",
-                "success": "#4caf50",
-                "warning": "#ff9800",
-                "error": "#f44336",
-            }
-        else:  # light theme
-            return {
-                "background_primary": "#ffffff",
-                "background_secondary": "#f5f5f5",
-                "background_hover": "#e0e0e0",
-                "text_primary": "#000000",
-                "text_secondary": "#757575",
-                "primary_accent": "#1976d2",
-                "border_primary": "#cccccc",
-                "border_secondary": "#e0e0e0",
-                "success": "#4caf50",
-                "warning": "#ff9800",
-                "error": "#f44336",
-            }
+        """Backwards-compatible color palette helper."""
+
+        return theme_colors(theme)
 
     def log_debug(self, message: str) -> None:
         """

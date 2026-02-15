@@ -208,11 +208,24 @@ class StationsSettingsDialog(QDialog):
             self.cache_manager = get_station_cache_manager()
             
             # Start background station loading for enhanced autocomplete
-            if hasattr(self, 'station_data_manager') and self.station_data_manager:
+            # IMPORTANT: do not require a data_repository here; `StationService` already
+            # holds it, and the worker only needs the service.
+            if self.station_service:
                 from src.ui.workers.station_data_worker import StationDataManager as WorkerManager
                 self.worker_manager = WorkerManager(self)
-                self.worker_manager.start_loading(self.station_service,
-                                               getattr(self.station_service, 'data_repository', None))
+
+                # Hook worker signals to update the UI with the full station list.
+                self.worker_manager.full_stations_ready.connect(
+                    self._on_full_stations_ready
+                )
+                self.worker_manager.loading_progress.connect(
+                    lambda message, pct: self._update_status(f"{message} ({pct}%)")
+                )
+                self.worker_manager.loading_error.connect(
+                    lambda error: self._update_status(f"Station loading error: {error}")
+                )
+
+                self.worker_manager.start_loading(self.station_service)
                 logger.info("Background station loading started")
             
             # Auto-trigger route calculation if both stations are set (deferred with delay)
@@ -227,6 +240,21 @@ class StationsSettingsDialog(QDialog):
             
         except Exception as e:
             logger.error(f"Error in deferred initialization: {e}")
+
+    def _on_full_stations_ready(self, stations: list[str]) -> None:
+        """Update the station selection widget once the full station list is loaded."""
+        try:
+            if not stations:
+                return
+
+            if self.station_selection_widget:
+                self.station_selection_widget.populate_stations(stations)
+
+            self._update_status(f"Ready ({len(stations)} stations loaded)")
+            logger.info("Station autocomplete upgraded to full dataset")
+
+        except Exception as e:
+            logger.error(f"Error applying full station list: {e}")
     
     @property
     def station_service(self):

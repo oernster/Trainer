@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushBut
 from PySide6.QtCore import Qt, Signal, QUrl
 from PySide6.QtGui import QFont, QDesktopServices
 
-from ...models.astronomy_data import AstronomyData, AstronomyEvent
+from ...services.astronomy_ui_facade import AstronomyEventDTO
 
 from ...utils.url_utils import canonicalize_url
 
@@ -31,7 +31,7 @@ class AstronomyEventDetails(QFrame):
     def __init__(self, parent=None):
         """Initialize astronomy event details."""
         super().__init__(parent)
-        self._astronomy_data: Optional[AstronomyData] = None
+        self._astronomy_data: Optional[object] = None
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -63,7 +63,7 @@ class AstronomyEventDetails(QFrame):
             if child.widget():
                 child.widget().deleteLater()
 
-    def update_data(self, astronomy_data: AstronomyData) -> None:
+    def update_data(self, astronomy_data: object) -> None:
         """Update details with astronomy data."""
         self._astronomy_data = astronomy_data
         self._clear_layout()
@@ -72,12 +72,13 @@ class AstronomyEventDetails(QFrame):
         # destinations when multiple events resolve to the same link.
         self._used_link_canon: set[str] = set()
 
-        if not astronomy_data.has_events:
-            self._show_no_events(astronomy_data.date)
+        if not getattr(astronomy_data, "has_events", False):
+            self._show_no_events(getattr(astronomy_data, "date", date.today()))
             return
 
         # Date header
-        date_label = QLabel(astronomy_data.date.strftime("%A, %B %d, %Y"))
+        date_value = getattr(astronomy_data, "date", None)
+        date_label = QLabel(date_value.strftime("%A, %B %d, %Y") if date_value else "")
         font = QFont()
         font.setPointSize(14)
         font.setBold(True)
@@ -86,12 +87,16 @@ class AstronomyEventDetails(QFrame):
         self._layout.addWidget(date_label)
 
         # Moon phase info
-        if astronomy_data.moon_phase:
+        if getattr(astronomy_data, "moon_phase", None):
             moon_widget = self._create_moon_info_widget(astronomy_data)
             self._layout.addWidget(moon_widget)
 
         # Events
-        events = astronomy_data.get_sorted_events(by_priority=True)
+        events = (
+            astronomy_data.get_sorted_events(by_priority=True)
+            if hasattr(astronomy_data, "get_sorted_events")
+            else []
+        )
         for event in events:
             event_widget = self._create_event_widget(event)
             self._layout.addWidget(event_widget)
@@ -116,7 +121,7 @@ class AstronomyEventDetails(QFrame):
 
         self._layout.addStretch()
 
-    def _create_moon_info_widget(self, astronomy_data: AstronomyData) -> QWidget:
+    def _create_moon_info_widget(self, astronomy_data: object) -> QWidget:
         """Create moon phase information widget."""
         widget = QFrame()
         widget.setFrameStyle(QFrame.Shape.Box)
@@ -165,7 +170,7 @@ class AstronomyEventDetails(QFrame):
 
         return widget
 
-    def _create_event_widget(self, event: AstronomyEvent) -> QWidget:
+    def _create_event_widget(self, event: object) -> QWidget:
         """Create widget for a single astronomy event."""
         widget = QFrame()
         widget.setFrameStyle(QFrame.Shape.Box)

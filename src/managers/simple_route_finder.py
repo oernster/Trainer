@@ -81,7 +81,12 @@ class SimpleRouteFinder:
     def find_direct_route(self, from_station: str, to_station: str) -> Optional[List[str]]:
         """Find direct route between two stations using station names."""
         if not self.loaded:
-            if not self.load_data():
+            try:
+                if not self.load_data():
+                    return None
+            except Exception:
+                # Defensive: callers (and tests) must be able to rely on this
+                # method never raising due to IO/parsing issues.
                 return None
         
         # Check if stations exist
@@ -118,7 +123,10 @@ class SimpleRouteFinder:
     def get_all_stations(self) -> List[str]:
         """Get list of all station names."""
         if not self.loaded:
-            if not self.load_data():
+            try:
+                if not self.load_data():
+                    return []
+            except Exception:
                 return []
         
         return list(self.station_lines.keys())
@@ -126,7 +134,10 @@ class SimpleRouteFinder:
     def get_lines_for_station(self, station_name: str) -> List[str]:
         """Get list of lines that serve a station."""
         if not self.loaded:
-            if not self.load_data():
+            try:
+                if not self.load_data():
+                    return []
+            except Exception:
                 return []
         
         return self.station_lines.get(station_name, [])
@@ -134,7 +145,10 @@ class SimpleRouteFinder:
     def get_stations_on_line(self, line_name: str) -> List[str]:
         """Get list of stations on a line in order."""
         if not self.loaded:
-            if not self.load_data():
+            try:
+                if not self.load_data():
+                    return []
+            except Exception:
                 return []
         
         return self.line_stations.get(line_name, [])
@@ -142,7 +156,10 @@ class SimpleRouteFinder:
     def find_interchange_stations(self) -> List[str]:
         """Find stations that serve multiple lines (interchange stations)."""
         if not self.loaded:
-            if not self.load_data():
+            try:
+                if not self.load_data():
+                    return []
+            except Exception:
                 return []
         
         interchange_stations = []
@@ -155,7 +172,10 @@ class SimpleRouteFinder:
     def find_route_with_changes(self, from_station: str, to_station: str, max_changes: int = 2) -> Optional[List[str]]:
         """Find route between stations allowing for changes at interchange stations."""
         if not self.loaded:
-            if not self.load_data():
+            try:
+                if not self.load_data():
+                    return None
+            except Exception:
                 return None
         
         # Try direct route first

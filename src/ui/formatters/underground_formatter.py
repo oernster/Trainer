@@ -1,13 +1,42 @@
-"""
-Underground Formatter
+"""Underground formatter.
 
-Handles formatting and display of black box Underground routing segments.
+UI formatting and display of "black box" Underground routing segments.
+
+Architecture note:
+    This module is in the UI layer, so it must not import from the core-domain
+    layer under `src/core/**`. Instead, it uses structural typing (Protocols)
+    so service-layer adapters can provide compatible objects/DTOs.
 """
+
+from __future__ import annotations
 
 import logging
-from typing import List, Optional, Dict, Any
+from typing import Any, Protocol, Sequence
 
-from ...core.models.route import Route, RouteSegment
+from .underground_resources import (
+    SYSTEM_INFO,
+    UNDERGROUND_WARNING_TEXT,
+    build_underground_css_styles,
+)
+
+
+class RouteSegmentLike(Protocol):
+    """Minimal segment shape required by the UI formatter."""
+
+    service_pattern: str
+    line_name: str
+    from_station: str
+    to_station: str
+    distance_km: float | None
+    journey_time_minutes: int | None
+
+
+class RouteLike(Protocol):
+    """Minimal route shape required by the UI formatter."""
+
+    from_station: str
+    to_station: str
+    segments: Sequence[RouteSegmentLike]
 
 
 class UndergroundFormatter:
@@ -25,31 +54,9 @@ class UndergroundFormatter:
         self.regular_background = "#F5F5F5"
         
         # System-specific information
-        self.system_info = {
-            "London Underground": {
-                "name": "London Underground",
-                "emoji": "🚇",
-                "color": "#DC241F",  # TfL red
-                "time_range": "10-40min",
-                "short_name": "London Underground"
-            },
-            "Glasgow Subway": {
-                "name": "Glasgow Subway",
-                "emoji": "🚇",
-                "color": "#FF6600",  # SPT orange
-                "time_range": "5-20min",
-                "short_name": "Glasgow Subway"
-            },
-            "Tyne and Wear Metro": {
-                "name": "Tyne and Wear Metro",
-                "emoji": "🚇",
-                "color": "#FFD700",  # Metro yellow
-                "time_range": "8-35min",
-                "short_name": "Tyne & Wear Metro"
-            }
-        }
+        self.system_info = SYSTEM_INFO
     
-    def is_underground_segment(self, segment: RouteSegment) -> bool:
+    def is_underground_segment(self, segment: RouteSegmentLike) -> bool:
         """
         Check if a route segment is an Underground black box segment for any UK system.
         
@@ -63,7 +70,7 @@ class UndergroundFormatter:
                 segment.line_name in self.system_info or
                 segment.line_name == "UNDERGROUND")
     
-    def get_underground_system_info(self, segment: RouteSegment) -> Dict[str, str]:
+    def get_underground_system_info(self, segment: RouteSegmentLike) -> dict[str, str]:
         """
         Get system-specific information for an underground segment.
         
@@ -112,7 +119,7 @@ class UndergroundFormatter:
         # Default to London Underground for backwards compatibility
         return self.system_info["London Underground"]
     
-    def format_underground_segment_text(self, segment: RouteSegment) -> str:
+    def format_underground_segment_text(self, segment: RouteSegmentLike) -> str:
         """
         Format the text display for an Underground segment.
         
@@ -134,7 +141,7 @@ class UndergroundFormatter:
         # Format as black box Underground segment with system-specific time range
         return f"{emoji} Use {system_name} ({time_range})"
     
-    def format_underground_segment_detailed(self, segment: RouteSegment) -> Dict[str, str]:
+    def format_underground_segment_detailed(self, segment: RouteSegmentLike) -> dict[str, str]:
         """
         Format detailed information for an Underground segment.
         
@@ -169,7 +176,7 @@ class UndergroundFormatter:
             "distance": f"{segment.distance_km:.1f}km" if segment.distance_km else "~5km"
         }
     
-    def get_underground_segment_style(self, segment: RouteSegment) -> Dict[str, str]:
+    def get_underground_segment_style(self, segment: RouteSegmentLike) -> dict[str, str]:
         """
         Get styling information for an Underground segment.
         
@@ -204,7 +211,7 @@ class UndergroundFormatter:
                 "css_class": "regular-segment"
             }
     
-    def format_route_with_underground(self, route: Route) -> List[Dict[str, Any]]:
+    def format_route_with_underground(self, route: RouteLike) -> list[dict[str, Any]]:
         """
         Format a complete route with Underground segments highlighted.
         
@@ -255,7 +262,7 @@ class UndergroundFormatter:
         
         return formatted_segments
     
-    def get_underground_route_summary(self, route: Route) -> Dict[str, Any]:
+    def get_underground_route_summary(self, route: RouteLike) -> dict[str, Any]:
         """
         Get a summary of Underground usage in a route.
         
@@ -290,7 +297,7 @@ class UndergroundFormatter:
             "summary_text": self._generate_route_summary_text(underground_segments, regular_segments)
         }
     
-    def format_underground_instructions(self, segment: RouteSegment) -> List[str]:
+    def format_underground_instructions(self, segment: RouteSegmentLike) -> list[str]:
         """
         Generate user-friendly instructions for Underground segments.
         
@@ -343,54 +350,14 @@ class UndergroundFormatter:
         Returns:
             CSS string for styling Underground elements
         """
-        return f"""
-        .underground-segment {{
-            background-color: {self.underground_background};
-            border: 2px solid {self.underground_color};
-            border-radius: 6px;
-            padding: 8px;
-            margin: 4px 0;
-            color: {self.underground_color};
-            font-weight: bold;
-        }}
-        
-        .underground-icon {{
-            color: {self.underground_color};
-            font-size: 18px;
-            margin-right: 8px;
-        }}
-        
-        .underground-text {{
-            color: {self.underground_color};
-            font-weight: bold;
-        }}
-        
-        .underground-time {{
-            color: {self.underground_color};
-            font-style: italic;
-            margin-left: 8px;
-        }}
-        
-        .regular-segment {{
-            background-color: {self.regular_background};
-            border: 1px solid #cccccc;
-            border-radius: 4px;
-            padding: 6px;
-            margin: 2px 0;
-            color: {self.regular_color};
-        }}
-        
-        .route-legend {{
-            background-color: #f9f9f9;
-            border: 1px solid #dddddd;
-            border-radius: 4px;
-            padding: 8px;
-            margin: 4px 0;
-            font-size: 12px;
-        }}
-        """
+        return build_underground_css_styles(
+            underground_background=self.underground_background,
+            underground_color=self.underground_color,
+            regular_background=self.regular_background,
+            regular_color=self.regular_color,
+        )
     
-    def format_route_display_text(self, route: Route) -> str:
+    def format_route_display_text(self, route: RouteLike) -> str:
         """
         Format a route for simple text display.
         
@@ -415,7 +382,7 @@ class UndergroundFormatter:
         
         return f"{route.from_station} → {route.to_station} via {' → '.join(parts)}"
     
-    def get_underground_legend_info(self) -> Dict[str, str]:
+    def get_underground_legend_info(self) -> dict[str, str]:
         """
         Get legend information for Underground display.
         
@@ -431,8 +398,11 @@ class UndergroundFormatter:
             "regular_description": "Direct National Rail services"
         }
     
-    def _generate_route_summary_text(self, underground_segments: List[RouteSegment],
-                                   regular_segments: List[RouteSegment]) -> str:
+    def _generate_route_summary_text(
+        self,
+        underground_segments: Sequence[RouteSegmentLike],
+        regular_segments: Sequence[RouteSegmentLike],
+    ) -> str:
         """
         Generate a summary text for the route.
         
@@ -459,7 +429,7 @@ class UndergroundFormatter:
         else:
             return f"Mixed journey: {len(regular_segments)} National Rail + {len(underground_segments)} Underground segment(s)"
     
-    def should_highlight_underground(self, route: Route) -> bool:
+    def should_highlight_underground(self, route: RouteLike) -> bool:
         """
         Determine if Underground segments should be highlighted in this route.
         
@@ -478,6 +448,4 @@ class UndergroundFormatter:
         Returns:
             Warning text string
         """
-        return ("Underground routing is simplified. Check the relevant transport authority website or app "
-                "(TfL for London Underground, SPT for Glasgow Subway, Nexus for Tyne & Wear Metro) for detailed "
-                "journey planning, live service updates, and accessibility information.")
+        return UNDERGROUND_WARNING_TEXT

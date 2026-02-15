@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QFrame, QScrollArea, QLabel
 from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QFont, QCursor
 
-from ...models.astronomy_data import AstronomyForecastData
+from ...services.astronomy_ui_facade import AstronomyEventDTO
 from .astronomy_event_details import AstronomyEventDetails
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ class AstronomyExpandablePanel(QWidget):
         """Initialize expandable panel."""
         super().__init__(parent)
         self._is_expanded = False
-        self._forecast_data: Optional[AstronomyForecastData] = None
+        self._forecast_data: Optional[object] = None
         self._animation: Optional[QPropertyAnimation] = None
         self._setup_ui()
 
@@ -169,25 +169,34 @@ class AstronomyExpandablePanel(QWidget):
         self.expansion_changed.emit(False)
         logger.debug("Astronomy panel collapsed")
 
-    def update_details(self, forecast_data: AstronomyForecastData) -> None:
+    def update_details(self, forecast_data: object) -> None:
         """Update detailed content with forecast data."""
         self._forecast_data = forecast_data
 
         # Show today's data by default
-        today_data = forecast_data.get_today_astronomy()
-        if today_data:
+        today_data = (
+            forecast_data.get_today_astronomy()
+            if hasattr(forecast_data, "get_today_astronomy")
+            else None
+        )
+        if today_data is not None:
             self._content_widget.update_data(today_data)
-        else:
-            # Show first available day
-            if forecast_data.daily_astronomy:
-                self._content_widget.update_data(forecast_data.daily_astronomy[0])
+            return
+
+        daily = getattr(forecast_data, "daily_astronomy", [])
+        if daily:
+            self._content_widget.update_data(daily[0])
 
     def show_date_details(self, target_date: date) -> None:
         """Show details for a specific date."""
         if not self._forecast_data:
             return
 
-        astronomy_data = self._forecast_data.get_astronomy_for_date(target_date)
+        astronomy_data = (
+            self._forecast_data.get_astronomy_for_date(target_date)
+            if self._forecast_data and hasattr(self._forecast_data, "get_astronomy_for_date")
+            else None
+        )
         if astronomy_data:
             self._content_widget.update_data(astronomy_data)
 

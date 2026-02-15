@@ -28,12 +28,12 @@ class IRouteService(ABC):
         Returns:
             Route object if found, None otherwise
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def calculate_multiple_routes(self, from_station: str, to_station: str,
-                                max_routes: int = 5, max_changes: int = 3,
-                                preferences: Optional[Dict[str, Any]] = None) -> List[Route]:
+                                 max_routes: int = 5, max_changes: int = 3,
+                                 preferences: Optional[Dict[str, Any]] = None) -> List[Route]:
         """
         Calculate multiple alternative routes between two stations.
         
@@ -47,7 +47,7 @@ class IRouteService(ABC):
         Returns:
             List of Route objects sorted by preference
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def find_direct_routes(self, from_station: str, to_station: str) -> List[Route]:
@@ -61,7 +61,7 @@ class IRouteService(ABC):
         Returns:
             List of direct Route objects
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def find_interchange_routes(self, from_station: str, to_station: str) -> List[Route]:
@@ -75,7 +75,7 @@ class IRouteService(ABC):
         Returns:
             List of Route objects with one change
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_fastest_route(self, from_station: str, to_station: str) -> Optional[Route]:
@@ -89,7 +89,7 @@ class IRouteService(ABC):
         Returns:
             Fastest Route object if found, None otherwise
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_shortest_route(self, from_station: str, to_station: str) -> Optional[Route]:
@@ -103,7 +103,7 @@ class IRouteService(ABC):
         Returns:
             Shortest Route object if found, None otherwise
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_fewest_changes_route(self, from_station: str, to_station: str) -> Optional[Route]:
@@ -117,7 +117,7 @@ class IRouteService(ABC):
         Returns:
             Route with fewest changes if found, None otherwise
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def find_routes_via_station(self, from_station: str, to_station: str,
@@ -133,11 +133,11 @@ class IRouteService(ABC):
         Returns:
             List of Route objects passing through via_station
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def find_routes_avoiding_station(self, from_station: str, to_station: str,
-                                   avoid_station: str) -> List[Route]:
+                                    avoid_station: str) -> List[Route]:
         """
         Find routes that avoid a specific station.
         
@@ -149,11 +149,11 @@ class IRouteService(ABC):
         Returns:
             List of Route objects avoiding the specified station
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def find_routes_on_line(self, from_station: str, to_station: str,
-                           line_name: str) -> List[Route]:
+                            line_name: str) -> List[Route]:
         """
         Find routes that use a specific railway line.
         
@@ -165,7 +165,7 @@ class IRouteService(ABC):
         Returns:
             List of Route objects using the specified line
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_possible_destinations(self, from_station: str, 
@@ -180,7 +180,7 @@ class IRouteService(ABC):
         Returns:
             List of reachable station names
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_journey_time(self, from_station: str, to_station: str) -> Optional[int]:
@@ -194,7 +194,7 @@ class IRouteService(ABC):
         Returns:
             Journey time in minutes if calculable, None otherwise
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_distance(self, from_station: str, to_station: str) -> Optional[float]:
@@ -208,7 +208,7 @@ class IRouteService(ABC):
         Returns:
             Distance in kilometers if calculable, None otherwise
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def validate_route(self, route: Route) -> Tuple[bool, List[str]]:
@@ -221,7 +221,7 @@ class IRouteService(ABC):
         Returns:
             Tuple of (is_valid, list_of_errors)
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_route_alternatives(self, route: Route, max_alternatives: int = 3,
@@ -237,7 +237,7 @@ class IRouteService(ABC):
         Returns:
             List of alternative Route objects
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def calculate_route_cost(self, route: Route) -> Optional[float]:
@@ -250,7 +250,7 @@ class IRouteService(ABC):
         Returns:
             Estimated cost if calculable, None otherwise
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_interchange_stations(self, from_station: str, to_station: str) -> List[str]:
@@ -264,7 +264,7 @@ class IRouteService(ABC):
         Returns:
             List of station names that can be used as interchanges
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def find_circular_routes(self, station: str, max_distance: float = 50.0) -> List[Route]:
@@ -278,7 +278,7 @@ class IRouteService(ABC):
         Returns:
             List of circular Route objects
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_route_statistics(self) -> Dict[str, Any]:
@@ -288,12 +288,12 @@ class IRouteService(ABC):
         Returns:
             Dictionary containing network statistics
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def clear_route_cache(self) -> None:
         """Clear any cached route calculations."""
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def precompute_common_routes(self, station_pairs: List[Tuple[str, str]]) -> None:
@@ -303,4 +303,4 @@ class IRouteService(ABC):
         Args:
             station_pairs: List of (from_station, to_station) tuples
         """
-        pass
+        raise NotImplementedError

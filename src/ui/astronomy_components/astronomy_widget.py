@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QS
 from PySide6.QtCore import Signal, QUrl
 from PySide6.QtGui import QDesktopServices
 
-from ...models.astronomy_data import AstronomyForecastData, AstronomyEvent
+from ...services.astronomy_ui_facade import AstronomyEventDTO
 from ...managers.astronomy_config import AstronomyConfig
 from .astronomy_forecast_panel import AstronomyForecastPanel
 
@@ -29,7 +29,7 @@ class AstronomyWidget(QWidget):
     """
 
     astronomy_refresh_requested = Signal()
-    astronomy_event_clicked = Signal(AstronomyEvent)
+    astronomy_event_clicked = Signal(object)
     astronomy_link_clicked = Signal(str)
 
     def __init__(self, parent=None, scale_factor=1.0):
@@ -146,7 +146,7 @@ class AstronomyWidget(QWidget):
         # Connect forecast panel signals
         self._forecast_panel.event_icon_clicked.connect(self._on_event_icon_clicked)
 
-    def _on_event_icon_clicked(self, event: AstronomyEvent) -> None:
+    def _on_event_icon_clicked(self, event: object) -> None:
         """Handle event icon click."""
         # Prefer the first not-yet-opened canonical URL for this event.
         candidates: list[str] = []
@@ -166,9 +166,7 @@ class AstronomyWidget(QWidget):
 
         if chosen_url:
             self._open_astronomy_link(chosen_url)
-            logger.info(f"Opened unique event link for {event.event_type.value}: {chosen_url}")
             self.astronomy_event_clicked.emit(event)
-            logger.debug(f"Astronomy event clicked: {event.title} ({event.event_type.value})")
             return
 
         # If all event candidates are exhausted (or none exist), open a unique
@@ -177,38 +175,32 @@ class AstronomyWidget(QWidget):
         fallback_url = self._get_unique_fallback_url()
         if fallback_url:
             self._open_astronomy_link(fallback_url)
-            logger.info(
-                f"Opened unique fallback link for {event.event_type.value}: {fallback_url}"
-            )
             self.astronomy_event_clicked.emit(event)
-            logger.debug(f"Astronomy event clicked: {event.title} ({event.event_type.value})")
             return
 
         # Final fallback to general NASA astronomy page
         self._open_nasa_astronomy_page()
-        logger.info(f"Used fallback NASA page for {event.event_type.value}")
 
         # Emit signal for external handling
         self.astronomy_event_clicked.emit(event)
-
-        logger.debug(f"Astronomy event clicked: {event.title} ({event.event_type.value})")
 
     def _get_unique_fallback_url(self) -> Optional[str]:
         """Pick a high-quality fallback URL that hasn't been opened yet."""
 
         try:
-            from ...models.astronomy_links import astronomy_links_db
-
-            # Prefer priority ordering; keep it stable for predictability.
-            all_links = sorted(
-                astronomy_links_db.get_all_links(),
-                key=lambda link: (link.priority, link.category.value, link.name.lower()),
-            )
-            for link in all_links:
-                canon = canonicalize_url(link.url)
+            # Curated links belong to the domain layer; UI isn't allowed to
+            # import them. Use a small, stable set of safe fallbacks here.
+            candidates = [
+                "https://science.nasa.gov/astrophysics/",
+                "https://www.esa.int/Science_Exploration/Space_Science",
+                "https://earthsky.org/tonight/",
+                "https://stellarium.org/",
+            ]
+            for url in candidates:
+                canon = canonicalize_url(url)
                 if canon and canon not in self._opened_link_canon:
                     self._opened_link_canon.add(canon)
-                    return link.url
+                    return url
         except Exception as exc:
             logger.debug(f"Failed selecting unique fallback URL: {exc}")
 
@@ -216,108 +208,28 @@ class AstronomyWidget(QWidget):
 
     def _open_night_sky_view(self) -> None:
         """Open current astronomical events page showing today's phenomena."""
-        # Import the astronomy links database
-        from ...models.astronomy_links import astronomy_links_db, LinkCategory
-        
-        # Get tonight's sky links
-        tonight_links = astronomy_links_db.get_links_by_category(LinkCategory.TONIGHT_SKY)
-        
-        if tonight_links:
-            # Open the highest priority tonight's sky link
-            primary_link = min(tonight_links, key=lambda x: x.priority)
-            self._open_astronomy_link(primary_link.url)
-            logger.info(f"Opened {primary_link.name}: {primary_link.url}")
-        else:
-            # Fallback to EarthSky if no links available
-            sky_url = "https://earthsky.org/tonight/"
-            self._open_astronomy_link(sky_url)
-            logger.info("Opened EarthSky's current astronomical events for tonight")
+        sky_url = "https://earthsky.org/tonight/"
+        self._open_astronomy_link(sky_url)
 
     def _open_observatories_view(self) -> None:
         """Open observatories page."""
-        from ...models.astronomy_links import astronomy_links_db, LinkCategory
-        
-        # Get observatory links
-        observatory_links = astronomy_links_db.get_links_by_category(LinkCategory.OBSERVATORY)
-        
-        if observatory_links:
-            # Open the highest priority observatory link (Hubble)
-            primary_link = min(observatory_links, key=lambda x: x.priority)
-            self._open_astronomy_link(primary_link.url)
-            logger.info(f"Opened {primary_link.name}: {primary_link.url}")
-        else:
-            # Fallback to NASA if no links available
-            self._open_nasa_astronomy_page()
+        self._open_astronomy_link("https://hubblesite.org/")
 
     def _open_space_agencies_view(self) -> None:
         """Open space agencies page."""
-        from ...models.astronomy_links import astronomy_links_db, LinkCategory
-        
-        # Get space agency links
-        agency_links = astronomy_links_db.get_links_by_category(LinkCategory.SPACE_AGENCY)
-        
-        if agency_links:
-            # Open the highest priority space agency link (NASA)
-            primary_link = min(agency_links, key=lambda x: x.priority)
-            self._open_astronomy_link(primary_link.url)
-            logger.info(f"Opened {primary_link.name}: {primary_link.url}")
-        else:
-            # Fallback to NASA if no links available
-            self._open_nasa_astronomy_page()
+        self._open_astronomy_link("https://www.nasa.gov/")
 
     def _open_educational_view(self) -> None:
         """Open educational resources page."""
-        from ...models.astronomy_links import astronomy_links_db, LinkCategory
-        
-        # Get educational links
-        educational_links = astronomy_links_db.get_links_by_category(LinkCategory.EDUCATIONAL)
-        
-        if educational_links:
-            # Open the highest priority educational link
-            primary_link = min(educational_links, key=lambda x: x.priority)
-            self._open_astronomy_link(primary_link.url)
-            logger.info(f"Opened {primary_link.name}: {primary_link.url}")
-        else:
-            # Fallback to NASA education
-            edu_url = "https://www.nasa.gov/audience/foreducators/"
-            self._open_astronomy_link(edu_url)
-            logger.info("Opened NASA Education")
+        self._open_astronomy_link("https://www.nasa.gov/audience/foreducators/")
 
     def _open_live_data_view(self) -> None:
         """Open live data feeds page."""
-        from ...models.astronomy_links import astronomy_links_db, LinkCategory
-        
-        # Get live data links
-        live_data_links = astronomy_links_db.get_links_by_category(LinkCategory.LIVE_DATA)
-        
-        if live_data_links:
-            # Open the highest priority live data link
-            primary_link = min(live_data_links, key=lambda x: x.priority)
-            self._open_astronomy_link(primary_link.url)
-            logger.info(f"Opened {primary_link.name}: {primary_link.url}")
-        else:
-            # Fallback to NASA live data
-            live_url = "https://www.nasa.gov/live/"
-            self._open_astronomy_link(live_url)
-            logger.info("Opened NASA Live")
+        self._open_astronomy_link("https://www.nasa.gov/live/")
 
     def _open_community_view(self) -> None:
         """Open community forums page."""
-        from ...models.astronomy_links import astronomy_links_db, LinkCategory
-        
-        # Get community links
-        community_links = astronomy_links_db.get_links_by_category(LinkCategory.COMMUNITY)
-        
-        if community_links:
-            # Open the highest priority community link
-            primary_link = min(community_links, key=lambda x: x.priority)
-            self._open_astronomy_link(primary_link.url)
-            logger.info(f"Opened {primary_link.name}: {primary_link.url}")
-        else:
-            # Fallback to Reddit astronomy
-            community_url = "https://www.reddit.com/r/astronomy/"
-            self._open_astronomy_link(community_url)
-            logger.info("Opened Reddit Astronomy")
+        self._open_astronomy_link("https://www.reddit.com/r/astronomy/")
 
     def _open_nasa_astronomy_page(self) -> None:
         """Open NASA astronomy page in browser."""
@@ -333,7 +245,7 @@ class AstronomyWidget(QWidget):
         except Exception as e:
             logger.error(f"Failed to open NASA link {url}: {e}")
 
-    def on_astronomy_updated(self, forecast_data: AstronomyForecastData) -> None:
+    def on_astronomy_updated(self, forecast_data: object) -> None:
         """Handle astronomy data updates."""
         # New forecast means we reset opened-link tracking.
         self._opened_link_canon.clear()
@@ -341,9 +253,7 @@ class AstronomyWidget(QWidget):
         # Update forecast panel
         self._forecast_panel.update_forecast(forecast_data)
 
-        logger.info(
-            f"Astronomy widget updated with {forecast_data.total_events} events"
-        )
+
 
     def on_astronomy_error(self, error_message: str) -> None:
         """Handle astronomy error."""

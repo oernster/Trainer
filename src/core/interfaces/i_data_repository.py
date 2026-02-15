@@ -21,7 +21,7 @@ class IDataRepository(ABC):
         Returns:
             List of Station objects
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def load_railway_lines(self) -> List[RailwayLine]:
@@ -31,7 +31,7 @@ class IDataRepository(ABC):
         Returns:
             List of RailwayLine objects
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_station_by_name(self, name: str) -> Optional[Station]:
@@ -44,7 +44,7 @@ class IDataRepository(ABC):
         Returns:
             Station object if found, None otherwise
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_railway_line_by_name(self, name: str) -> Optional[RailwayLine]:
@@ -57,7 +57,7 @@ class IDataRepository(ABC):
         Returns:
             RailwayLine object if found, None otherwise
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_stations_on_line(self, line_name: str) -> List[Station]:
@@ -70,7 +70,7 @@ class IDataRepository(ABC):
         Returns:
             List of Station objects on the line
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_lines_serving_station(self, station_name: str) -> List[RailwayLine]:
@@ -83,7 +83,7 @@ class IDataRepository(ABC):
         Returns:
             List of RailwayLine objects serving the station
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_journey_time(self, from_station: str, to_station: str, 
@@ -99,7 +99,7 @@ class IDataRepository(ABC):
         Returns:
             Journey time in minutes if available, None otherwise
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_distance(self, from_station: str, to_station: str,
@@ -115,7 +115,7 @@ class IDataRepository(ABC):
         Returns:
             Distance in kilometers if available, None otherwise
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_all_station_names(self) -> Set[str]:
@@ -125,7 +125,7 @@ class IDataRepository(ABC):
         Returns:
             Set of all station names
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_all_line_names(self) -> Set[str]:
@@ -135,7 +135,7 @@ class IDataRepository(ABC):
         Returns:
             Set of all railway line names
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_interchange_stations(self) -> List[Station]:
@@ -145,7 +145,7 @@ class IDataRepository(ABC):
         Returns:
             List of interchange Station objects
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_terminus_stations(self) -> List[Station]:
@@ -155,7 +155,7 @@ class IDataRepository(ABC):
         Returns:
             List of terminus Station objects
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_major_stations(self) -> List[Station]:
@@ -165,7 +165,7 @@ class IDataRepository(ABC):
         Returns:
             List of major Station objects
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_london_stations(self) -> List[Station]:
@@ -175,7 +175,7 @@ class IDataRepository(ABC):
         Returns:
             List of London Station objects
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def search_stations_by_name(self, query: str, limit: int = 10) -> List[Station]:
@@ -189,7 +189,7 @@ class IDataRepository(ABC):
         Returns:
             List of matching Station objects
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def search_lines_by_name(self, query: str, limit: int = 10) -> List[RailwayLine]:
@@ -203,11 +203,11 @@ class IDataRepository(ABC):
         Returns:
             List of matching RailwayLine objects
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_stations_near_location(self, latitude: float, longitude: float,
-                                  radius_km: float = 10.0) -> List[Station]:
+                                   radius_km: float = 10.0) -> List[Station]:
         """
         Get stations near a geographic location.
         
@@ -219,7 +219,7 @@ class IDataRepository(ABC):
         Returns:
             List of nearby Station objects
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_common_lines(self, station1: str, station2: str) -> List[RailwayLine]:
@@ -233,7 +233,7 @@ class IDataRepository(ABC):
         Returns:
             List of common RailwayLine objects
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def validate_station_exists(self, station_name: str) -> bool:
@@ -246,7 +246,7 @@ class IDataRepository(ABC):
         Returns:
             True if station exists, False otherwise
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def validate_line_exists(self, line_name: str) -> bool:
@@ -259,7 +259,7 @@ class IDataRepository(ABC):
         Returns:
             True if line exists, False otherwise
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_service_patterns(self, line_name: str) -> List[str]:
@@ -272,7 +272,7 @@ class IDataRepository(ABC):
         Returns:
             List of service pattern identifiers
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_line_statistics(self, line_name: str) -> Dict[str, Any]:
@@ -285,7 +285,7 @@ class IDataRepository(ABC):
         Returns:
             Dictionary containing line statistics
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_network_statistics(self) -> Dict[str, Any]:
@@ -295,7 +295,7 @@ class IDataRepository(ABC):
         Returns:
             Dictionary containing network statistics
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def refresh_data(self) -> bool:
@@ -305,7 +305,7 @@ class IDataRepository(ABC):
         Returns:
             True if refresh successful, False otherwise
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_data_version(self) -> str:
@@ -315,7 +315,7 @@ class IDataRepository(ABC):
         Returns:
             Data version string
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_last_updated(self) -> Optional[str]:
@@ -325,7 +325,7 @@ class IDataRepository(ABC):
         Returns:
             Last updated timestamp string if available, None otherwise
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def backup_data(self, backup_path: str) -> bool:
@@ -338,7 +338,7 @@ class IDataRepository(ABC):
         Returns:
             True if backup successful, False otherwise
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def restore_data(self, backup_path: str) -> bool:
@@ -351,4 +351,4 @@ class IDataRepository(ABC):
         Returns:
             True if restore successful, False otherwise
         """
-        pass
+        raise NotImplementedError

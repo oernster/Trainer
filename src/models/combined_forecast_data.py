@@ -9,11 +9,12 @@ encapsulation and single responsibility.
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, date, timedelta
-from typing import List, Optional, Dict, Any, Tuple
-from enum import Enum
+from datetime import date, datetime, timedelta
+from typing import Optional
 
-from .weather_data import WeatherData, WeatherForecastData, Location
+from .combined_forecast_enums import CombinedDataStatus, ForecastDataQuality
+from .combined_forecast_validator import CombinedForecastValidator
+from .weather_data import Location, WeatherData, WeatherForecastData
 from .astronomy_data import (
     AstronomyData,
     AstronomyForecastData,
@@ -23,25 +24,6 @@ from .astronomy_data import (
 from version import __version__
 
 logger = logging.getLogger(__name__)
-
-
-class ForecastDataQuality(Enum):
-    """Quality levels for forecast data."""
-
-    EXCELLENT = "excellent"  # Both weather and astronomy data available
-    GOOD = "good"  # One primary data source available
-    PARTIAL = "partial"  # Limited data available
-    POOR = "poor"  # Minimal or stale data
-
-
-class CombinedDataStatus(Enum):
-    """Status of combined forecast data."""
-
-    COMPLETE = "complete"  # All data sources successful
-    WEATHER_ONLY = "weather_only"  # Only weather data available
-    ASTRONOMY_ONLY = "astronomy_only"  # Only astronomy data available
-    PARTIAL_FAILURE = "partial_failure"  # Some data sources failed
-    COMPLETE_FAILURE = "complete_failure"  # All data sources failed
 
 
 @dataclass(frozen=True)
@@ -139,7 +121,7 @@ class DailyForecastData:
 
     def get_astronomy_events_by_type(
         self, event_type: AstronomyEventType
-    ) -> List[AstronomyEvent]:
+    ) -> list[AstronomyEvent]:
         """Get astronomy events of a specific type."""
         if self.astronomy_data:
             return self.astronomy_data.get_events_by_type(event_type)
@@ -172,17 +154,22 @@ class CombinedForecastData:
     """
 
     location: Location
-    daily_forecasts: List[DailyForecastData] = field(default_factory=list)
+    daily_forecasts: list[DailyForecastData] = field(default_factory=list)
     weather_forecast: Optional[WeatherForecastData] = None
     astronomy_forecast: Optional[AstronomyForecastData] = None
     last_updated: datetime = field(default_factory=datetime.now)
     data_version: str = field(default=__version__)
     status: CombinedDataStatus = CombinedDataStatus.COMPLETE_FAILURE
-    error_messages: List[str] = field(default_factory=list)
+    error_messages: list[str] = field(default_factory=list)
 
     def __post_init__(self):
         """Validate combined forecast data on creation."""
+        # For total failure cases we allow an empty daily forecast list.
+        # This keeps the type usable as an error container while still
+        # enforcing strong invariants for successful/partial data.
         if not self.daily_forecasts:
+            if self.status == CombinedDataStatus.COMPLETE_FAILURE:
+                return
             raise ValueError(
                 "Combined forecast must contain at least one daily forecast"
             )
@@ -332,7 +319,7 @@ class CombinedForecastData:
     def _determine_status(
         weather_data: Optional[WeatherForecastData],
         astronomy_data: Optional[AstronomyForecastData],
-        daily_forecasts: List[DailyForecastData],
+        daily_forecasts: list[DailyForecastData],
     ) -> CombinedDataStatus:
         """Determine the overall status of combined forecast."""
         has_weather = weather_data is not None
@@ -387,7 +374,7 @@ class CombinedForecastData:
         )
 
     @property
-    def data_quality_summary(self) -> Dict[ForecastDataQuality, int]:
+    def data_quality_summary(self) -> dict[ForecastDataQuality, int]:
         """Get a summary of data quality across all days."""
         quality_counts = {quality: 0 for quality in ForecastDataQuality}
         for forecast in self.daily_forecasts:
@@ -414,19 +401,19 @@ class CombinedForecastData:
         tomorrow = date.today() + timedelta(days=1)
         return self.get_forecast_for_date(tomorrow)
 
-    def get_forecasts_with_astronomy(self) -> List[DailyForecastData]:
+    def get_forecasts_with_astronomy(self) -> list[DailyForecastData]:
         """Get all forecasts that have astronomy data."""
         return [
             forecast for forecast in self.daily_forecasts if forecast.has_astronomy_data
         ]
 
-    def get_forecasts_with_weather(self) -> List[DailyForecastData]:
+    def get_forecasts_with_weather(self) -> list[DailyForecastData]:
         """Get all forecasts that have weather data."""
         return [
             forecast for forecast in self.daily_forecasts if forecast.has_weather_data
         ]
 
-    def get_high_priority_astronomy_days(self) -> List[DailyForecastData]:
+    def get_high_priority_astronomy_days(self) -> list[DailyForecastData]:
         """Get forecasts with high priority astronomy events."""
         return [
             forecast
@@ -434,7 +421,7 @@ class CombinedForecastData:
             if forecast.has_high_priority_astronomy
         ]
 
-    def get_precipitation_days(self) -> List[DailyForecastData]:
+    def get_precipitation_days(self) -> list[DailyForecastData]:
         """Get forecasts with expected precipitation."""
         return [
             forecast
@@ -459,92 +446,6 @@ class CombinedForecastData:
             return "No errors"
         return "; ".join(self.error_messages)
 
-
-class CombinedForecastValidator:
-    """
-    Validator for combined forecast data integrity.
-
-    Follows Single Responsibility Principle - only responsible for validation.
-    """
-
-    @staticmethod
-    def validate_daily_forecast(daily_forecast: DailyForecastData) -> bool:
-        """Validate daily forecast data."""
-        try:
-            # Must have at least one data source
-            if (
-                not daily_forecast.has_weather_data
-                and not daily_forecast.has_astronomy_data
-            ):
-                return False
-
-            # Validate date consistency
-            if daily_forecast.weather_data:
-                if daily_forecast.weather_data.timestamp.date() != daily_forecast.date:
-                    return False
-
-            if daily_forecast.astronomy_data:
-                if daily_forecast.astronomy_data.date != daily_forecast.date:
-                    return False
-
-            return True
-        except (AttributeError, TypeError):
-            return False
-
-    @staticmethod
-    def validate_location_consistency(combined_forecast: CombinedForecastData) -> bool:
-        """Validate that all data sources use the same location."""
-        base_location = combined_forecast.location
-
-        if combined_forecast.weather_forecast:
-            weather_location = combined_forecast.weather_forecast.location
-            if (
-                weather_location.latitude != base_location.latitude
-                or weather_location.longitude != base_location.longitude
-            ):
-                return False
-
-        if combined_forecast.astronomy_forecast:
-            astronomy_location = combined_forecast.astronomy_forecast.location
-            if (
-                astronomy_location.latitude != base_location.latitude
-                or astronomy_location.longitude != base_location.longitude
-            ):
-                return False
-
-        return True
-
-    @classmethod
-    def validate_combined_forecast(
-        cls, combined_forecast: CombinedForecastData
-    ) -> bool:
-        """Validate complete combined forecast data."""
-        try:
-            # Validate basic structure
-            if not combined_forecast.daily_forecasts:
-                return False
-
-            # Validate location consistency
-            if not cls.validate_location_consistency(combined_forecast):
-                return False
-
-            # Validate all daily forecasts
-            for daily_forecast in combined_forecast.daily_forecasts:
-                if not cls.validate_daily_forecast(daily_forecast):
-                    return False
-
-            # Validate chronological order
-            dates = [forecast.date for forecast in combined_forecast.daily_forecasts]
-            if dates != sorted(dates):
-                return False
-
-            # Validate no duplicates
-            if len(dates) != len(set(dates)):
-                return False
-
-            return True
-        except (AttributeError, TypeError):
-            return False
 
 
 # Factory functions for creating combined forecasts

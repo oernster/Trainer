@@ -176,9 +176,8 @@ class Route:
     def get_route_description(self) -> str:
         """Get a human-readable description of the route."""
         # Handle special routing types
-        if hasattr(self, 'routing_type'):
-            if self.routing_type == "same_station":
-                return "Same station"
+        if self.routing_type == "same_station":
+            return "Same station"
         
         # Regular route description
         if self.is_direct:

@@ -198,6 +198,8 @@ class StationSelectionWidget(QWidget):
             
             # Clear existing items
             if self.from_station_combo:
+                # Avoid emitting `currentTextChanged` while we rebuild the model.
+                self.from_station_combo.blockSignals(True)
                 self.from_station_combo.clear()
                 self.from_station_combo.addItems(self.stations)
                 
@@ -207,20 +209,28 @@ class StationSelectionWidget(QWidget):
                 from_completer.setFilterMode(Qt.MatchFlag.MatchContains)
                 self.from_station_combo.setCompleter(from_completer)
                 
-                # CRITICAL: Ensure combo remains enabled and editable after population
+                # Ensure combo remains enabled and editable after population
                 self.from_station_combo.setEnabled(from_enabled)
                 self.from_station_combo.setEditable(True)
                 line_edit = self.from_station_combo.lineEdit()
                 if line_edit:
                     line_edit.setEnabled(True)
                     line_edit.setReadOnly(False)
+
+                # Do not default-select the first station; start empty unless we
+                # have a prior selection to restore.
+                self.from_station_combo.setCurrentIndex(-1)
+                self.from_station_combo.setCurrentText("")
+
+                self.from_station_combo.blockSignals(False)
                 
-                # CRITICAL: Restore previous selection if it existed
+                # Restore previous selection if it existed
                 if current_from:
                     self.set_from_station(current_from)
                     logger.debug(f"Restored FROM station after repopulation: {current_from}")
             
             if self.to_station_combo:
+                self.to_station_combo.blockSignals(True)
                 self.to_station_combo.clear()
                 self.to_station_combo.addItems(self.stations)
                 
@@ -230,15 +240,22 @@ class StationSelectionWidget(QWidget):
                 to_completer.setFilterMode(Qt.MatchFlag.MatchContains)
                 self.to_station_combo.setCompleter(to_completer)
                 
-                # CRITICAL: Ensure combo remains enabled and editable after population
+                # Ensure combo remains enabled and editable after population
                 self.to_station_combo.setEnabled(to_enabled)
                 self.to_station_combo.setEditable(True)
                 line_edit = self.to_station_combo.lineEdit()
                 if line_edit:
                     line_edit.setEnabled(True)
                     line_edit.setReadOnly(False)
+
+                # Do not default-select the first station; start empty unless we
+                # have a prior selection to restore.
+                self.to_station_combo.setCurrentIndex(-1)
+                self.to_station_combo.setCurrentText("")
+
+                self.to_station_combo.blockSignals(False)
                 
-                # CRITICAL: Restore previous selection if it existed
+                # Restore previous selection if it existed
                 if current_to:
                     self.set_to_station(current_to)
                     logger.debug(f"Restored TO station after repopulation: {current_to}")

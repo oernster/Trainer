@@ -10,20 +10,22 @@ abstraction, error handling, and integration coordination.
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, Tuple
+from typing import Any, Optional
 from PySide6.QtCore import QObject, Signal, QTimer
 
 from ..models.weather_data import WeatherForecastData, Location
 from ..models.astronomy_data import AstronomyForecastData
-from ..models.combined_forecast_data import (
-    CombinedForecastData,
-    CombinedDataStatus,
-    CombinedForecastValidator,
-)
+from ..models.combined_forecast_data import CombinedForecastData
 from ..managers.weather_manager import WeatherManager
 from ..managers.astronomy_manager import AstronomyManager
 from ..managers.weather_config import WeatherConfig
 from ..managers.astronomy_config import AstronomyConfig
+
+from .combined_forecast_manager_helpers import (
+    build_cache_info as _build_cache_info,
+    clear_cache as _clear_cache,
+    shutdown as _shutdown,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +60,10 @@ class CombinedForecastManager(QObject):
         super().__init__()
         self._weather_manager = weather_manager
         self._astronomy_manager = astronomy_manager
+        # Validator lives alongside the model; keep the dependency local to avoid
+        # import cycles during refactors.
+        from ..models.combined_forecast_validator import CombinedForecastValidator
+
         self._validator = CombinedForecastValidator()
 
         # State tracking
@@ -455,114 +461,19 @@ class CombinedForecastManager(QObject):
 
     def get_cache_info(self) -> Dict[str, Any]:
         """Get comprehensive cache information."""
-        info = {
-            "has_current_forecast": self._current_forecast is not None,
-            "last_update_time": self._last_update_time,
-            "is_loading": self._is_loading,
-            "auto_refresh_active": self.is_auto_refresh_active(),
-            "has_weather_manager": self._weather_manager is not None,
-            "has_astronomy_manager": self._astronomy_manager is not None,
-        }
-
-        if self._current_forecast:
-            info.update(
-                {
-                    "forecast_status": self._current_forecast.status.value,
-                    "forecast_days": self._current_forecast.forecast_days,
-                    "total_astronomy_events": self._current_forecast.total_astronomy_events,
-                }
-            )
-
-        return info
+        return _build_cache_info(self)
 
     def clear_cache(self) -> None:
         """Clear all cached combined forecast data."""
-        self._current_forecast = None
-        self._last_update_time = None
-
-        # Also clear individual manager caches if they support it
-        if self._weather_manager:
-            clear_cache_method = getattr(self._weather_manager, "clear_cache", None)
-            if clear_cache_method:
-                clear_cache_method()
-
-        if self._astronomy_manager:
-            clear_cache_method = getattr(self._astronomy_manager, "clear_cache", None)
-            if clear_cache_method:
-                clear_cache_method()
-
+        _clear_cache(self)
         logger.info("Combined forecast cache cleared")
 
     def shutdown(self) -> None:
         """Shutdown combined forecast manager and cleanup resources."""
         logger.info("Shutting down combined forecast manager...")
-
-        # Stop auto-refresh
-        self.stop_auto_refresh()
-
-        # Shutdown individual managers
-        if self._weather_manager:
-            self._weather_manager.shutdown()
-
-        if self._astronomy_manager:
-            self._astronomy_manager.shutdown()
-
-        # Clear data
-        self._current_forecast = None
-        self._last_update_time = None
-
+        _shutdown(self)
         logger.info("Combined forecast manager shutdown complete")
 
 
-class CombinedForecastFactory:
-    """
-    Factory for creating combined forecast managers.
-
-    Implements Factory pattern for easy instantiation and testing.
-    """
-
-    @staticmethod
-    def create_manager(
-        weather_config: Optional[WeatherConfig] = None,
-        astronomy_config: Optional[AstronomyConfig] = None,
-    ) -> CombinedForecastManager:
-        """Create combined forecast manager with given configurations."""
-        weather_manager = None
-        astronomy_manager = None
-
-        if weather_config and weather_config.enabled:
-            from ..managers.weather_manager import WeatherManager
-
-            weather_manager = WeatherManager(weather_config)
-
-        if astronomy_config and astronomy_config.enabled:
-            from ..managers.astronomy_manager import AstronomyManager
-
-            astronomy_manager = AstronomyManager(astronomy_config)
-
-        return CombinedForecastManager(weather_manager, astronomy_manager)
-
-    @staticmethod
-    def create_weather_only_manager(
-        weather_config: WeatherConfig,
-    ) -> CombinedForecastManager:
-        """Create combined manager with only weather data."""
-        from ..managers.weather_manager import WeatherManager
-
-        weather_manager = WeatherManager(weather_config)
-        return CombinedForecastManager(weather_manager, None)
-
-    @staticmethod
-    def create_astronomy_only_manager(
-        astronomy_config: AstronomyConfig,
-    ) -> CombinedForecastManager:
-        """Create combined manager with only astronomy data."""
-        from ..managers.astronomy_manager import AstronomyManager
-
-        astronomy_manager = AstronomyManager(astronomy_config)
-        return CombinedForecastManager(None, astronomy_manager)
-
-    @staticmethod
-    def create_test_manager() -> CombinedForecastManager:
-        """Create combined manager for testing."""
-        return CombinedForecastManager(None, None)
+# Backwards-compatible re-export
+from .combined_forecast_factory import CombinedForecastFactory  # noqa: E402

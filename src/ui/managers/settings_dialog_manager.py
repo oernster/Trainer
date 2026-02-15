@@ -56,24 +56,33 @@ class SettingsDialogManager(QObject):
             
             # Import dialog class
             try:
-                from src.ui.dialogs.stations_settings_dialog import StationsSettingsDialog
+                # Current project layout exposes the dialog at `src.ui.stations_settings_dialog`.
+                from src.ui.stations_settings_dialog import StationsSettingsDialog
             except ImportError:
                 logger.error("StationsSettingsDialog not found - creating placeholder")
                 self._show_placeholder_dialog("Stations Settings", "Station configuration dialog would appear here.")
                 return
             
             # Create and show dialog
-            config = getattr(self.main_window, 'config', None)
-            if not config:
-                logger.error("No configuration available for stations settings")
-                return
-            
-            dialog = StationsSettingsDialog(self.main_window, config)
+            config_manager = getattr(self.main_window, "config_manager", None)
+            theme_manager = getattr(self.main_window, "theme_manager", None)
+            station_database = getattr(self.main_window, "station_database", None)
+
+            dialog = StationsSettingsDialog(
+                parent=self.main_window,
+                station_database=station_database,
+                config_manager=config_manager,
+                theme_manager=theme_manager,
+            )
             self._open_dialogs['stations_settings'] = dialog
-            
+
             # Connect dialog signals
-            if hasattr(dialog, 'settings_changed'):
-                dialog.settings_changed.connect(self._on_stations_settings_changed)
+            # In the refactored flow, dialogs emit no payload; MainWindow is the
+            # single place that reloads config + refreshes subsystems.
+            if hasattr(dialog, "settings_saved"):
+                dialog.settings_saved.connect(self.main_window.on_settings_saved)
+            elif hasattr(dialog, "settings_changed"):
+                dialog.settings_changed.connect(self.main_window.on_settings_saved)
             
             # Show dialog
             result = dialog.exec()
@@ -101,33 +110,16 @@ class SettingsDialogManager(QObject):
             
             # Import dialog class
             try:
-                from src.ui.dialogs.weather_settings_dialog import WeatherSettingsDialog
+                # Weather settings dialog has not been migrated into this manager-based
+                # system yet.
+                raise ImportError
             except ImportError:
                 logger.error("WeatherSettingsDialog not found - creating placeholder")
                 self._show_placeholder_dialog("Weather Settings", "Weather configuration dialog would appear here.")
                 return
             
-            # Create and show dialog
-            config = getattr(self.main_window, 'config', None)
-            if not config:
-                logger.error("No configuration available for weather settings")
-                return
-            
-            dialog = WeatherSettingsDialog(self.main_window, config)
-            self._open_dialogs['weather_settings'] = dialog
-            
-            # Connect dialog signals
-            if hasattr(dialog, 'settings_changed'):
-                dialog.settings_changed.connect(self._on_weather_settings_changed)
-            
-            # Show dialog
-            result = dialog.exec()
-            
-            # Clean up dialog reference
-            if 'weather_settings' in self._open_dialogs:
-                del self._open_dialogs['weather_settings']
-            
-            logger.debug(f"Weather settings dialog closed with result: {result}")
+            # Dialog not available.
+            return
             
         except Exception as e:
             logger.error(f"Error showing weather settings dialog: {e}")
@@ -146,7 +138,7 @@ class SettingsDialogManager(QObject):
             
             # Import dialog class
             try:
-                from src.ui.dialogs.astronomy_settings_dialog import AstronomySettingsDialog
+                from src.ui.astronomy_settings_dialog import AstronomySettingsDialog
             except ImportError:
                 logger.error("AstronomySettingsDialog not found - creating placeholder")
                 self._show_placeholder_dialog("Astronomy Settings", "Astronomy configuration dialog would appear here.")
@@ -158,12 +150,19 @@ class SettingsDialogManager(QObject):
                 logger.error("No configuration available for astronomy settings")
                 return
             
-            dialog = AstronomySettingsDialog(self.main_window, config)
+            # AstronomySettingsDialog signature: (config_manager, parent=None, theme_manager=None)
+            config_manager = getattr(self.main_window, "config_manager", None)
+            theme_manager = getattr(self.main_window, "theme_manager", None)
+            if not config_manager:
+                logger.error("No config_manager available for astronomy settings")
+                return
+
+            dialog = AstronomySettingsDialog(config_manager, parent=self.main_window, theme_manager=theme_manager)
             self._open_dialogs['astronomy_settings'] = dialog
             
             # Connect dialog signals
-            if hasattr(dialog, 'settings_changed'):
-                dialog.settings_changed.connect(self._on_astronomy_settings_changed)
+            if hasattr(dialog, 'settings_saved'):
+                dialog.settings_saved.connect(self._on_astronomy_settings_changed)
             
             # Show dialog
             result = dialog.exec()
@@ -191,33 +190,15 @@ class SettingsDialogManager(QObject):
             
             # Import dialog class
             try:
-                from src.ui.dialogs.general_settings_dialog import GeneralSettingsDialog
+                # General settings dialog is not implemented in this project layout.
+                raise ImportError
             except ImportError:
                 logger.error("GeneralSettingsDialog not found - creating placeholder")
                 self._show_placeholder_dialog("General Settings", "General application settings dialog would appear here.")
                 return
             
-            # Create and show dialog
-            config = getattr(self.main_window, 'config', None)
-            if not config:
-                logger.error("No configuration available for general settings")
-                return
-            
-            dialog = GeneralSettingsDialog(self.main_window, config)
-            self._open_dialogs['general_settings'] = dialog
-            
-            # Connect dialog signals
-            if hasattr(dialog, 'settings_changed'):
-                dialog.settings_changed.connect(self._on_general_settings_changed)
-            
-            # Show dialog
-            result = dialog.exec()
-            
-            # Clean up dialog reference
-            if 'general_settings' in self._open_dialogs:
-                del self._open_dialogs['general_settings']
-            
-            logger.debug(f"General settings dialog closed with result: {result}")
+            # Dialog not available.
+            return
             
         except Exception as e:
             logger.error(f"Error showing general settings dialog: {e}")
@@ -226,17 +207,9 @@ class SettingsDialogManager(QObject):
     def show_about_dialog(self) -> None:
         """Show the about dialog."""
         try:
-            # Import dialog class
-            try:
-                from src.ui.dialogs.about_dialog import AboutDialog
-            except ImportError:
-                logger.error("AboutDialog not found - creating placeholder")
-                self._show_placeholder_dialog("About", "About dialog would appear here with application information.")
-                return
-            
-            # Create and show dialog
-            dialog = AboutDialog(self.main_window)
-            dialog.exec()
+            # About dialog is handled by [`python.show_about_dialog()`](src/ui/main_window_components/info_dialogs.py:14)
+            # in the refactored main window.
+            self.main_window.show_about_dialog()
             
             logger.debug("About dialog shown")
             
@@ -260,19 +233,23 @@ class SettingsDialogManager(QObject):
         msg_box.setIcon(QMessageBox.Icon.Critical)
         msg_box.exec()
     
-    def _on_stations_settings_changed(self, settings: Dict[str, Any]) -> None:
-        """
-        Handle stations settings changes.
-        
-        Args:
-            settings: Updated station settings
+    def _on_stations_settings_changed(self, settings: Optional[Dict[str, Any]] = None) -> None:
+        """Handle stations settings changes.
+
+        NOTE: kept for backward compatibility. The refactored dialog now emits
+        `settings_saved` without payload, and the preferred flow is to call
+        [`python.MainWindow.on_settings_saved()`](src/ui/main_window_refactored.py:276).
         """
         try:
             logger.info("Stations settings changed")
+
+            if hasattr(self.main_window, "on_settings_saved"):
+                self.main_window.on_settings_saved()
+                return
             
             # Update configuration
             config = getattr(self.main_window, 'config', None)
-            if config and hasattr(config, 'stations'):
+            if config and hasattr(config, 'stations') and settings:
                 # Apply settings changes
                 for key, value in settings.items():
                     if hasattr(config.stations, key):
@@ -325,24 +302,36 @@ class SettingsDialogManager(QObject):
         except Exception as e:
             logger.error(f"Error applying weather settings: {e}")
     
-    def _on_astronomy_settings_changed(self, settings: Dict[str, Any]) -> None:
-        """
-        Handle astronomy settings changes.
-        
+    def _on_astronomy_settings_changed(self, settings: Optional[Dict[str, Any]] = None) -> None:
+        """Handle astronomy settings changes.
+
+        The refactored [`python.AstronomySettingsDialog`](src/ui/astronomy_settings_dialog.py:41)
+        emits `settings_saved` without a payload. Older code paths expected a dict.
+
         Args:
-            settings: Updated astronomy settings
+            settings: Optional updated astronomy settings.
         """
         try:
             logger.info("Astronomy settings changed")
-            
+
+            # Preferred path in the refactored app: let MainWindow reload config +
+            # update subsystems consistently.
+            if hasattr(self.main_window, "on_settings_saved"):
+                try:
+                    self.main_window.on_settings_saved()
+                    return
+                except Exception as e:
+                    logger.warning("MainWindow.on_settings_saved() failed: %s", e)
+             
             # Update configuration
             config = getattr(self.main_window, 'config', None)
             if config and hasattr(config, 'astronomy'):
-                # Apply settings changes
-                for key, value in settings.items():
-                    if hasattr(config.astronomy, key):
-                        setattr(config.astronomy, key, value)
-                
+                # Apply settings changes if provided
+                if settings:
+                    for key, value in settings.items():
+                        if hasattr(config.astronomy, key):
+                            setattr(config.astronomy, key, value)
+                 
                 # Save configuration
                 config_manager = getattr(self.main_window, 'config_manager', None)
                 if config_manager:

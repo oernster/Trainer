@@ -254,8 +254,11 @@ class StationDataManager(QObject):
         # Start fast loading first for immediate UI responsiveness
         self._start_fast_loading()
         
-        # Start full loading in parallel for complete data
-        if station_service and data_repository:
+        # Start full loading in parallel for complete data.
+        # NOTE: `data_repository` is optional here because the worker only needs
+        # `station_service` today. Keeping the parameter allows future
+        # enhancements without changing call sites.
+        if station_service:
             self._start_full_loading(station_service, data_repository)
     
     def _start_fast_loading(self):

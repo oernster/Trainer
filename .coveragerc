@@ -1,0 +1,20 @@
+[run]
+branch = True
+source =
+    src/core/models
+    src/core/interfaces
+
+# Coverage gate is phased by package.
+# Phase 1 scope: `src/core/models/**` + `src/core/interfaces/**`.
+
+[report]
+fail_under = 100
+show_missing = True
+skip_covered = False
+precision = 2
+
+exclude_lines =
+    pragma: no cover
+    ^\s*raise NotImplementedError\b
+    ^\s*if __name__ == ['\"]__main__['\"]:\s*$
+

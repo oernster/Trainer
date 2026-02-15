@@ -483,32 +483,5 @@ class AstronomyManager(QObject):
             except Exception:
                 return 0.5
 
-class AstronomyManagerFactory:
-    """
-    Factory for creating astronomy managers.
-
-    Implements Factory pattern for easy instantiation and testing.
-    """
-
-    @staticmethod
-    def create_manager(config: AstronomyConfig) -> AstronomyManager:
-        """Create astronomy manager with given configuration."""
-        return AstronomyManager(config)
-
-    @staticmethod
-    def create_disabled_manager() -> AstronomyManager:
-        """Create a disabled astronomy manager for testing."""
-        config = AstronomyConfig(enabled=False)
-        return AstronomyManager(config)
-
-    @staticmethod
-    def create_test_manager(api_key: str = "test_key") -> AstronomyManager:
-        """Create astronomy manager for testing."""
-        config = AstronomyConfig(
-            enabled=True,
-            location_name="Test Location",
-            location_latitude=51.5074,
-            location_longitude=-0.1278,
-        )
-        return AstronomyManager(config)
-
+# Backwards-compatible re-export
+from .astronomy_manager_factory import AstronomyManagerFactory  # noqa: E402

@@ -68,16 +68,19 @@ class RailwayLine:
                 
                 # Parse journey time key (e.g., "London Waterloo-Clapham Junction")
                 if "-" in journey_key:
-                    parts = journey_key.split("-", 1)  # Split on first dash only
-                    if len(parts) == 2:
-                        from_station = parts[0].strip()
-                        to_station = parts[1].strip()
-                        
-                        # Only validate if both stations exist in the line
-                        if from_station not in station_set:
-                            raise ValueError(f"Journey time from_station '{from_station}' not in line stations")
-                        if to_station not in station_set:
-                            raise ValueError(f"Journey time to_station '{to_station}' not in line stations")
+                    from_station, to_station = journey_key.split("-", 1)  # Split on first dash only
+                    from_station = from_station.strip()
+                    to_station = to_station.strip()
+
+                    # Only validate if both stations exist in the line
+                    if from_station not in station_set:
+                        raise ValueError(
+                            f"Journey time from_station '{from_station}' not in line stations"
+                        )
+                    if to_station not in station_set:
+                        raise ValueError(
+                            f"Journey time to_station '{to_station}' not in line stations"
+                        )
         
         # Validate distances if provided
         if self.distances:

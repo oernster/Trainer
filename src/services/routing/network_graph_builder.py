@@ -10,7 +10,7 @@ from collections import defaultdict
 from pathlib import Path
 import json
 
-from ..interfaces.i_data_repository import IDataRepository
+from src.core.interfaces.i_data_repository import IDataRepository
 
 
 class NetworkGraphBuilder:

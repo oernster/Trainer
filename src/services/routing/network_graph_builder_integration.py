@@ -12,7 +12,7 @@ import logging
 from typing import Dict, List, Optional, Any
 from collections import defaultdict
 
-from ..interfaces.i_data_repository import IDataRepository
+from src.core.interfaces.i_data_repository import IDataRepository
 from .walking_connection_service import WalkingConnectionService
 from .network_graph_builder import NetworkGraphBuilder
 

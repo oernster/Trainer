@@ -43,11 +43,10 @@ class RouteCalculationWorker(QThread):
             )
 
             try:
-                # Build a route service instance locally to avoid cross-thread
-                # interaction with dialog lazy properties / shared caches.
-                from src.core.services.service_factory import ServiceFactory
-
-                route_service = ServiceFactory().get_route_service()
+                # Phase 2 boundary: the dialog must provide injected services.
+                route_service = getattr(self.dialog, "route_service", None)
+                if route_service is None:
+                    raise RuntimeError("Route service is not available")
                 route_data = self._calculate_route_data(
                     route_service=route_service,
                     preferences=preferences,

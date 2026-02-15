@@ -13,7 +13,7 @@ def process_train_data(*, trains: list[TrainData]) -> list[TrainData]:
     """Filter/sort trains and apply essential calling-points reduction."""
 
     from ....utils.helpers import filter_trains_by_status, sort_trains_by_departure
-    from ....core.services.essential_stations_filter import EssentialStationsFilter
+    from ....services.routing.essential_stations_filter import EssentialStationsFilter
 
     filtered_trains = filter_trains_by_status(trains, include_cancelled=False)
     sorted_trains = sort_trains_by_departure(filtered_trains)

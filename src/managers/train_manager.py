@@ -24,7 +24,6 @@ from PySide6.QtCore import QObject, Signal, QTimer
 
 from ..models.train_data import TrainData
 from ..managers.config_models import ConfigData
-from ..core.services.service_factory import ServiceFactory
 from ..core.interfaces.i_route_service import IRouteService
 from ..core.interfaces.i_station_service import IStationService
 from ..utils.helpers import calculate_journey_stats
@@ -55,7 +54,13 @@ class TrainManager(QObject):
     connection_changed = Signal(bool, str)  # Connected, message
     last_update_changed = Signal(str)  # Last update timestamp
 
-    def __init__(self, config: ConfigData):
+    def __init__(
+        self,
+        config: ConfigData,
+        *,
+        station_service: Optional[IStationService] = None,
+        route_service: Optional[IRouteService] = None,
+    ):
         """
         Initialize refactored train manager.
 
@@ -79,25 +84,28 @@ class TrainManager(QObject):
         self.to_station: Optional[str] = None
         # Note: route_path removed - UI should get route data directly from RouteService
         
-        # Initialize services
-        self._initialize_services(config)
+        # Initialize services (bootstrap owns composition; no internal construction).
+        self._initialize_services(
+            config,
+            station_service=station_service,
+            route_service=route_service,
+        )
         
         # Note: No longer loading route_path from config - UI gets route data from RouteService
         
         logger.info("Refactored TrainManager initialized with service-oriented architecture")
 
-    def _initialize_services(self, config: ConfigData) -> None:
-        """Initialize all services."""
-        # Initialize core services
-        try:
-            service_factory = ServiceFactory()
-            station_service: Optional[IStationService] = service_factory.get_station_service()
-            route_service: Optional[IRouteService] = service_factory.get_route_service()
-            logger.info("Core services initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize core services: {e}")
-            station_service = None
-            route_service = None
+    def _initialize_services(
+        self,
+        config: ConfigData,
+        *,
+        station_service: Optional[IStationService],
+        route_service: Optional[IRouteService],
+    ) -> None:
+        """Initialize all services.
+
+        Phase 2 boundary: TrainManager must not construct routing services.
+        """
 
         # Initialize service layer
         self.route_calculation_service = RouteCalculationService(route_service, station_service)

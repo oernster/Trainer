@@ -10,7 +10,7 @@ import heapq
 import logging
 from typing import Any, Dict, Optional
 
-from ..interfaces.i_data_repository import IDataRepository
+from src.core.interfaces.i_data_repository import IDataRepository
 from .pathfinding_components.connection_selection import get_best_connection
 from .pathfinding_components.station_lookup import find_station_in_graph
 from .pathfinding_components.types import PathNode

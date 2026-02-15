@@ -19,6 +19,8 @@ from src.managers.config_models import ConfigData
 from src.managers.train_manager import TrainManager
 from src.ui.main_window import MainWindow
 
+from src.services.routing.composition import build_routing_services
+
 logger = logging.getLogger(__name__)
 
 
@@ -76,7 +78,15 @@ def bootstrap_app(*, config_manager: ConfigManager, config: ConfigData) -> Appli
     """
 
     window = MainWindow(config_manager)
-    train_manager = TrainManager(config)
+
+    # Composition root: assemble routing services once and inject.
+    routing = build_routing_services()
+
+    train_manager = TrainManager(
+        config,
+        station_service=routing.station_service,
+        route_service=routing.route_service,
+    )
 
     # External managers (expected by UI layer) - set explicitly.
     window.train_manager = train_manager

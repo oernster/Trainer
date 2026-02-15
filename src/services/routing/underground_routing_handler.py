@@ -10,8 +10,8 @@ Handles the "black box" approach for all UK underground systems:
 import logging
 from typing import List, Optional, Set, Dict, Tuple
 
-from ..interfaces.i_data_repository import IDataRepository
-from ..models.route import Route, RouteSegment
+from src.core.interfaces.i_data_repository import IDataRepository
+from src.core.models.route import Route, RouteSegment
 from .underground_components.data_loader import UndergroundDataLoader
 from .underground_components.station_classifier import StationClassifier
 from .underground_components.journey_estimator import JourneyEstimator

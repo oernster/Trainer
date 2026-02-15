@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import List, Tuple
 
-from ...models.route import Route
+from src.core.models.route import Route
 
 
 def validate_route(*, data_repository, route: Route) -> Tuple[bool, List[str]]:

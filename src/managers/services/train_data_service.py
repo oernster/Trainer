@@ -313,11 +313,11 @@ class TrainDataService:
             # Creating new JsonDataRepository instances for each station check
             # causes massive memory pressure (72 lines + 859 stations loaded repeatedly)
             if self._data_repo_cache is None:
-                from ...core.services.json_data_repository import JsonDataRepository
+                from ...services.routing.json_data_repository import JsonDataRepository
                 self._data_repo_cache = JsonDataRepository()
             
             if self._underground_handler_cache is None:
-                from ...core.services.underground_routing_handler import UndergroundRoutingHandler
+                from ...services.routing.underground_routing_handler import UndergroundRoutingHandler
                 self._underground_handler_cache = UndergroundRoutingHandler(self._data_repo_cache)
             
             # If it's an Underground-only station (not mixed), hide it

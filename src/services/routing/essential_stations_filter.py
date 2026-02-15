@@ -16,8 +16,7 @@ For direct journeys with no changes, only origin and destination are shown.
 """
 
 import logging
-from typing import List, Set, Optional
-from ...models.train_data import CallingPoint
+from typing import Any, List, Optional, Set
 from .interchange_detection_service import InterchangeDetectionService
 
 logger = logging.getLogger(__name__)
@@ -47,8 +46,11 @@ class EssentialStationsFilter:
     }
     
     @classmethod
-    def filter_to_essential_stations(cls, calling_points: List[CallingPoint],
-                                   route_segments: Optional[List] = None) -> List[CallingPoint]:
+    def filter_to_essential_stations(
+        cls,
+        calling_points: List[Any],
+        route_segments: Optional[List] = None,
+    ) -> List[Any]:
         """
         Filter calling points to show only essential stations.
         
@@ -116,9 +118,9 @@ class EssentialStationsFilter:
         return essential_stations
     
     @classmethod
-    def _is_essential_station(cls, current: CallingPoint, all_points: List[CallingPoint],
-                            index: int, route_segments: Optional[List] = None,
-                            actual_interchanges: Optional[Set[str]] = None) -> bool:
+    def _is_essential_station(cls, current: Any, all_points: List[Any],
+                             index: int, route_segments: Optional[List] = None,
+                             actual_interchanges: Optional[Set[str]] = None) -> bool:
         """
         Determine if a station is essential and should be shown.
         

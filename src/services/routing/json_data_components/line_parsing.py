@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from ...models.railway_line import LineStatus, RailwayLine
+from src.core.models.railway_line import LineStatus, RailwayLine
 
 
 def parse_railway_line_json_with_index(

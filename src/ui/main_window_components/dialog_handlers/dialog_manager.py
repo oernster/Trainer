@@ -45,7 +45,21 @@ class DialogManager:
             station_db = getattr(train_manager, 'station_database', None) if train_manager else None
             
             from ...stations_settings_dialog import StationsSettingsDialog
-            dialog = StationsSettingsDialog(self.main_window, station_db, config_manager, self.theme_manager)
+
+            # Phase 2 boundary: UI dialogs must not construct routing services.
+            station_service = getattr(train_manager, "route_calculation_service", None)
+            station_service = getattr(station_service, "station_service", None)
+            route_service = getattr(train_manager, "route_calculation_service", None)
+            route_service = getattr(route_service, "route_service", None)
+
+            dialog = StationsSettingsDialog(
+                self.main_window,
+                station_db,
+                config_manager,
+                self.theme_manager,
+                station_service=station_service,
+                route_service=route_service,
+            )
             
             # Return the dialog for the caller to connect signals
             return dialog

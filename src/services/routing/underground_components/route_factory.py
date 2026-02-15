@@ -7,7 +7,7 @@ Handles creation of different types of underground routes.
 import logging
 from typing import List, Optional, Tuple
 
-from ...models.route import Route, RouteSegment
+from src.core.models.route import Route, RouteSegment
 from .station_classifier import StationClassifier
 from .journey_estimator import JourneyEstimator
 from .terminal_manager import TerminalManager

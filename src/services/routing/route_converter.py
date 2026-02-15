@@ -7,8 +7,8 @@ Handles converting PathNode objects to Route objects and managing intermediate s
 import logging
 from typing import Any, Dict, List, Optional
 
-from ..interfaces.i_data_repository import IDataRepository
-from ..models.route import Route, RouteSegment
+from src.core.interfaces.i_data_repository import IDataRepository
+from src.core.models.route import Route, RouteSegment
 from .pathfinding_components.types import PathNode
 
 from .route_converter_helpers import generate_train_service_id, load_line_data_with_coordinates

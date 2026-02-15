@@ -9,9 +9,9 @@ from typing import List, Optional, Set, Dict, Any
 from difflib import SequenceMatcher
 import re
 
-from ..interfaces.i_station_service import IStationService
-from ..interfaces.i_data_repository import IDataRepository
-from ..models.station import Station
+from src.core.interfaces.i_station_service import IStationService
+from src.core.interfaces.i_data_repository import IDataRepository
+from src.core.models.station import Station
 
 
 class StationService(IStationService):

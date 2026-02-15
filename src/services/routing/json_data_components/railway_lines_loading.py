@@ -6,7 +6,7 @@ import json
 from typing import Any
 from pathlib import Path
 
-from ...models.railway_line import RailwayLine
+from src.core.models.railway_line import RailwayLine
 
 
 def load_railway_lines_from_json(*, repo) -> list[RailwayLine]:

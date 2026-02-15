@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import List
 
-from ...models.route import Route
+from src.core.models.route import Route
 
 
 def find_direct_routes(*, data_repository, route_converter, from_station: str, to_station: str) -> List[Route]:

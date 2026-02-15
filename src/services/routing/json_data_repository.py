@@ -12,9 +12,9 @@ from pathlib import Path
 from datetime import datetime
 import shutil
 
-from ..interfaces.i_data_repository import IDataRepository
-from ..models.station import Station
-from ..models.railway_line import RailwayLine, LineType, LineStatus
+from src.core.interfaces.i_data_repository import IDataRepository
+from src.core.models.station import Station
+from src.core.models.railway_line import RailwayLine, LineType, LineStatus
 
 
 class JsonDataRepository(IDataRepository):

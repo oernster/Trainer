@@ -46,7 +46,16 @@ class StationsSettingsDialog(QDialog):
     settings_changed = Signal()
     route_updated = Signal(dict)
     
-    def __init__(self, parent=None, station_database=None, config_manager=None, theme_manager=None):
+    def __init__(
+        self,
+        parent=None,
+        station_database=None,
+        config_manager=None,
+        theme_manager=None,
+        *,
+        station_service=None,
+        route_service=None,
+    ):
         """
         Initialize the train settings dialog.
         
@@ -64,10 +73,10 @@ class StationsSettingsDialog(QDialog):
         self.config_manager = config_manager
         self.theme_manager = theme_manager
         
-        # Initialize core services lazily for better performance
-        self._station_service = None
-        self._route_service = None
-        # Don't initialize services immediately - use lazy loading
+        # Routing services are injected by bootstrap/UI composition.
+        # Phase 2 boundary: this dialog must not construct services.
+        self._station_service = station_service
+        self._route_service = route_service
         
         # Initialize state management
         self.dialog_state = DialogState(self)
@@ -148,7 +157,7 @@ class StationsSettingsDialog(QDialog):
     def _setup_immediate_ui_responsiveness(self):
         """Set up immediate UI responsiveness - make fields editable instantly."""
         # Load essential stations immediately (very fast)
-        from src.core.services.essential_station_cache import get_essential_stations
+        from src.services.routing.essential_station_cache import get_essential_stations
         essential_stations = get_essential_stations()
         
         if essential_stations and self.station_selection_widget:
@@ -258,30 +267,12 @@ class StationsSettingsDialog(QDialog):
     
     @property
     def station_service(self):
-        """Lazy loading property for station service."""
-        if self._station_service is None:
-            try:
-                from src.core.services.service_factory import ServiceFactory
-                service_factory = ServiceFactory()
-                self._station_service = service_factory.get_station_service()
-                logger.info("Station service initialized lazily")
-            except Exception as e:
-                logger.error(f"Failed to initialize station service: {e}")
-                self._station_service = None
+        """Station service injected by bootstrap."""
         return self._station_service
     
     @property
     def route_service(self):
-        """Lazy loading property for route service."""
-        if self._route_service is None:
-            try:
-                from src.core.services.service_factory import ServiceFactory
-                service_factory = ServiceFactory()
-                self._route_service = service_factory.get_route_service()
-                logger.info("Route service initialized lazily")
-            except Exception as e:
-                logger.error(f"Failed to initialize route service: {e}")
-                self._route_service = None
+        """Route service injected by bootstrap."""
         return self._route_service
     
     def _update_status(self, message: str):

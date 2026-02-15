@@ -1,6 +1,6 @@
 """Cross-country (region-to-region) route construction.
 
-Split out of [`RouteFactory`](src/core/services/underground_components/route_factory.py:17)
+Split out of `RouteFactory` (moved in Phase 2)
 to keep the module under the <= 400 non-blank LOC gate.
 """
 
@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from ...models.route import Route, RouteSegment
+from src.core.models.route import Route, RouteSegment
 
 
 def create_cross_country_route(factory, from_station: str, to_station: str) -> Optional[Route]:

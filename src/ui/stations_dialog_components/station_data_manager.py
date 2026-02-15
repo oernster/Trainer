@@ -220,7 +220,7 @@ class StationDataManager:
         """Populate combo boxes with essential stations immediately for instant interaction."""
         try:
             # Load essential stations (this is very fast - <0.001s)
-            from src.core.services.essential_station_cache import get_essential_stations
+            from src.services.routing.essential_station_cache import get_essential_stations
             essential_stations = get_essential_stations()
             
             if essential_stations and self.dialog.station_selection_widget:

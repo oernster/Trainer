@@ -379,181 +379,24 @@ class RouteCalculationService:
         return [start_station, end_station]
 
     def _create_route_segments_from_path(self, path: List[str], line_data: Dict[str, Dict]) -> List:
-        """Create route segments with line change information from a station path."""
-        if not path or len(path) < 2:
-            return []
-        
-        segments = []
-        
-        class RouteSegment:
-            def __init__(self, from_station, to_station, line_name, station_count=1, service_pattern=None, train_service_id=None):
-                self.from_station = from_station
-                self.to_station = to_station
-                self.line_name = line_name
-                self.distance_km = 15 * station_count
-                self.journey_time_minutes = 10 * station_count
-                self.service_pattern = service_pattern
-                self.train_service_id = train_service_id
-        
-        # Build station to lines mapping
-        station_to_lines = self._build_station_to_lines_mapping(line_data)
-        
-        # Find line change points
-        segment_start = 0
-        current_line = None
-        
-        for i in range(len(path)):
-            station = path[i]
-            station_lines = set(station_to_lines.get(station, []))
-            
-            if i == 0:
-                current_line = list(station_lines)[0] if station_lines else "Unknown Line"
-                continue
-            
-            # Check if still on same line
-            if current_line in station_lines:
-                continue
-            else:
-                # Line change detected
-                segment_end = i - 1
-                if segment_end > segment_start:
-                    from_station = path[segment_start]
-                    to_station = path[segment_end]
-                    station_count = segment_end - segment_start
-                    
-                    service_pattern = "WALKING" if current_line == 'WALKING' else None
-                    # Generate train service ID based on line and service pattern
-                    train_service_id = self._generate_train_service_id(current_line or "Unknown Line", service_pattern, from_station, to_station)
-                    segment = RouteSegment(from_station, to_station, current_line, station_count, service_pattern, train_service_id)
-                    segments.append(segment)
-                
-                # Start new segment
-                segment_start = i - 1
-                prev_station = path[i - 1]
-                prev_lines = set(station_to_lines.get(prev_station, []))
-                
-                common_lines = prev_lines & station_lines
-                current_line = list(common_lines)[0] if common_lines else list(station_lines)[0] if station_lines else "Unknown Line"
-        
-        # Create final segment
-        if segment_start < len(path) - 1:
-            from_station = path[segment_start]
-            to_station = path[-1]
-            station_count = len(path) - 1 - segment_start
-            
-            service_pattern = "WALKING" if current_line == 'WALKING' else None
-            # Generate train service ID for final segment
-            train_service_id = self._generate_train_service_id(current_line or "Unknown Line", service_pattern, from_station, to_station)
-            segment = RouteSegment(from_station, to_station, current_line, station_count, service_pattern, train_service_id)
-            segments.append(segment)
+        from .route_calc_components.route_objects import create_route_segments_from_path
 
-        logger.debug(f"Created {len(segments)} route segments")
-        return segments
+        return create_route_segments_from_path(service=self, path=path, line_data=line_data)
 
     def _create_minimal_route(self, path: List[str], avoid_walking: bool = False,
-                             walking_connections: Optional[Dict] = None) -> object:
-        """Create a minimal route object with essential properties."""
-        class MinimalRoute:
-            def __init__(self, path, avoid_walking=False, walking_connections=None):
-                self.full_path = path
-                self.from_station = path[0]
-                self.to_station = path[-1]
-                self.total_journey_time_minutes = len(path) * 10
-                self.total_distance_km = len(path) * 15
-                self.changes_required = max(0, len(path) - 2)
-                self.segments = []
-                self._is_valid = True
-                
-                # Create segments
-                walking_connections = walking_connections or {}
-                for i in range(len(path) - 1):
-                    from_stn = path[i]
-                    to_stn = path[i+1]
-                    
-                    station_pair = (from_stn, to_stn)
-                    is_walking = station_pair in walking_connections
-                    
-                    if avoid_walking and is_walking:
-                        self._is_valid = False
-                    
-                    distance_km = 10
-                    time_minutes = 15
-                    
-                    if is_walking and station_pair in walking_connections:
-                        conn_info = walking_connections[station_pair]
-                        distance_km = conn_info.get("distance_km", distance_km)
-                        time_minutes = conn_info.get("time_minutes", time_minutes)
-                    
-                    # Generate train service ID for minimal segment
-                    line_name = "WALKING" if is_walking else "National Rail"
-                    train_service_id = f"MINIMAL_{line_name}_{from_stn}_{to_stn}"
-                    
-                    segment = MinimalSegment(
-                        from_station=from_stn,
-                        to_station=to_stn,
-                        is_walking=is_walking,
-                        distance_km=distance_km,
-                        time_minutes=time_minutes,
-                        train_service_id=train_service_id
-                    )
-                    
-                    self.segments.append(segment)
-                    self.total_journey_time_minutes += time_minutes - 10  # Adjust for default
-                    self.total_distance_km += distance_km - 15  # Adjust for default
-            
-            @property
-            def intermediate_stations(self):
-                return self.full_path[1:-1] if len(self.full_path) > 2 else []
-                
-            @property
-            def is_valid(self):
-                return self._is_valid
-        
-        class MinimalSegment:
-            def __init__(self, from_station, to_station, is_walking=False, distance_km=10, time_minutes=15, train_service_id=None):
-                self.from_station = from_station
-                self.to_station = to_station
-                self.line_name = "WALKING" if is_walking else "National Rail"
-                self.journey_time_minutes = time_minutes
-                self.distance_km = distance_km
-                self.is_walking_connection = is_walking
-                self.train_service_id = train_service_id
-        
-        return MinimalRoute(path, avoid_walking, walking_connections)
+                              walking_connections: Optional[Dict] = None) -> object:
+        from .route_calc_components.route_objects import create_minimal_route
+
+        return create_minimal_route(
+            path=path,
+            avoid_walking=avoid_walking,
+            walking_connections=walking_connections,
+        )
 
     def _load_all_line_data(self) -> Dict[str, Dict]:
-        """Load all railway line JSON data files with caching."""
-        if self._line_data_cache is not None:
-            return self._line_data_cache
-            
-        # Import data path resolver
-        try:
-            from ...utils.data_path_resolver import get_lines_directory
-            lines_dir = get_lines_directory()
-        except (ImportError, FileNotFoundError):
-            # Fallback to old method
-            lines_dir = Path(__file__).parent.parent.parent / "data" / "lines"
-            
-        line_data = {}
-        
-        if not lines_dir.exists():
-            logger.error(f"Lines directory not found: {lines_dir}")
-            return {}
-        
-        try:
-            for json_file in lines_dir.glob("*.json"):
-                with open(json_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    line_name = data.get('metadata', {}).get('line_name', json_file.stem)
-                    line_data[line_name] = data
+        from .route_calc_components.data_loading import load_all_line_data
 
-            logger.info(f"Loaded {len(line_data)} railway line data files")
-            self._line_data_cache = line_data
-            return line_data
-            
-        except Exception as e:
-            logger.error(f"Failed to load line data: {e}")
-            return {}
+        return load_all_line_data(service=self)
 
     def _build_station_to_lines_mapping(self, line_data: Dict[str, Dict]) -> Dict[str, List[str]]:
         """Build mapping of station names to the lines they appear on."""
@@ -571,51 +414,9 @@ class RouteCalculationService:
         return station_to_lines
 
     def _load_walking_connections(self) -> Dict:
-        """Load walking connections from interchange_connections.json with caching."""
-        if self._walking_connections_cache is not None:
-            return self._walking_connections_cache
-            
-        try:
-            # Import data path resolver
-            try:
-                from ...utils.data_path_resolver import get_data_file_path
-                connections_file = get_data_file_path("interchange_connections.json")
-            except (ImportError, FileNotFoundError):
-                # Fallback to old method
-                connections_file = Path(__file__).parent.parent.parent / "data" / "interchange_connections.json"
-            
-            if not connections_file.exists():
-                logger.warning(f"Interchange connections file not found: {connections_file}")
-                return {}
-            
-            with open(connections_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            walking_connections = {}
-            
-            for connection in data.get('connections', []):
-                if connection.get('connection_type') == 'WALKING':
-                    from_station = connection.get('from_station')
-                    to_station = connection.get('to_station')
-                    walking_distance_m = connection.get('walking_distance_m', 1000)
-                    distance_km = walking_distance_m / 1000.0
-                    time_minutes = connection.get('time_minutes', 10)
-                    
-                    if from_station and to_station:
-                        conn_info = {
-                            "distance_km": distance_km,
-                            "time_minutes": time_minutes
-                        }
-                        walking_connections[(from_station, to_station)] = conn_info
-                        walking_connections[(to_station, from_station)] = conn_info
-            
-            logger.info(f"Loaded {len(walking_connections)} walking connections")
-            self._walking_connections_cache = walking_connections
-            return walking_connections
-            
-        except Exception as e:
-            logger.error(f"Error loading walking connections: {e}")
-            return {}
+        from .route_calc_components.data_loading import load_walking_connections
+
+        return load_walking_connections(service=self)
 
     def _generate_train_service_id(self, line_name: str, service_pattern: Optional[str],
                                   from_station: str, to_station: str) -> str:

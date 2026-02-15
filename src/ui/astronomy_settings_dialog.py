@@ -27,7 +27,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QStringListModel
 from PySide6.QtGui import QFont
-from ..managers.config_manager import ConfigManager, ConfigData, ConfigurationError
+from ..managers.config_manager import ConfigManager
+from ..managers.config_models import ConfigData, ConfigurationError
 from ..managers.theme_manager import ThemeManager
 from ..managers.astronomy_config import AstronomyConfig
 from ..services.geocoding_service import get_city_coordinates, get_available_cities, get_cities_matching
@@ -438,154 +439,15 @@ class AstronomySettingsDialog(QDialog):
         """Apply theme styling to the settings dialog."""
         if not self.theme_manager:
             return
+        from .astronomy_components.theme_styles import (
+            build_astronomy_settings_dialog_stylesheet,
+        )
 
-        # Get current theme
-        current_theme = self.theme_manager.current_theme
-
-        if current_theme == "light":
-            # Light theme styling
-            dialog_style = """
-            QDialog {
-                background-color: #ffffff;
-                color: #1976d2;
-            }
-            QGroupBox {
-                color: #1976d2;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                margin-top: 8px;
-                padding-top: 8px;
-                background-color: #ffffff;
-            }
-            QGroupBox::title {
-                color: #1976d2;
-                subcontrol-origin: margin;
-                left: 8px;
-                padding: 0 4px 0 4px;
-                background-color: #ffffff;
-            }
-            QLineEdit {
-                background-color: #ffffff;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                padding: 4px;
-                color: #1976d2;
-            }
-            QLineEdit:focus {
-                border-color: #1976d2;
-            }
-            QCheckBox {
-                color: #1976d2;
-                background-color: #ffffff;
-                spacing: 5px;
-                font-size: 12px;
-            }
-            QCheckBox::text {
-                color: #1976d2;
-            }
-            QCheckBox::indicator {
-                background-color: #ffffff;
-                border: 1px solid #cccccc;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #1976d2;
-                border: 1px solid #1976d2;
-            }
-            QPushButton {
-                background-color: #1976d2;
-                border: 1px solid #1976d2;
-                border-radius: 4px;
-                padding: 6px 12px;
-                color: #ffffff;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #1565c0;
-                border-color: #1565c0;
-            }
-            QPushButton:pressed {
-                background-color: #0d47a1;
-                border-color: #0d47a1;
-            }
-            QLabel {
-                color: #1976d2;
-                background-color: transparent;
-            }
-            """
-        else:
-            # Dark theme styling
-            dialog_style = """
-            QDialog {
-                background-color: #1a1a1a;
-                color: #ffffff;
-            }
-            QGroupBox {
-                color: #ffffff;
-                border: 1px solid #404040;
-                border-radius: 4px;
-                margin-top: 8px;
-                padding-top: 8px;
-                background-color: #1a1a1a;
-            }
-            QGroupBox::title {
-                color: #1976d2;
-                subcontrol-origin: margin;
-                left: 8px;
-                padding: 0 4px 0 4px;
-                background-color: #1a1a1a;
-            }
-            QLineEdit {
-                background-color: #2d2d2d;
-                border: 1px solid #404040;
-                border-radius: 4px;
-                padding: 4px;
-                color: #ffffff;
-            }
-            QLineEdit:focus {
-                border-color: #1976d2;
-            }
-            QCheckBox {
-                color: #ffffff;
-                background-color: #1a1a1a;
-                spacing: 5px;
-                font-size: 12px;
-                padding: 2px;
-            }
-            QCheckBox::text {
-                color: #ffffff;
-                padding-left: 5px;
-            }
-            QCheckBox::indicator {
-                background-color: #2d2d2d;
-                border: 1px solid #404040;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #1976d2;
-                border: 1px solid #1976d2;
-            }
-            QPushButton {
-                background-color: #1976d2;
-                border: 1px solid #1976d2;
-                border-radius: 4px;
-                padding: 6px 12px;
-                color: #ffffff;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #1565c0;
-                border-color: #1565c0;
-            }
-            QPushButton:pressed {
-                background-color: #0d47a1;
-                border-color: #0d47a1;
-            }
-            QLabel {
-                color: #ffffff;
-                background-color: transparent;
-            }
-            """
-
-        self.setStyleSheet(dialog_style)
+        self.setStyleSheet(
+            build_astronomy_settings_dialog_stylesheet(
+                theme_name=self.theme_manager.current_theme,
+            )
+        )
 
     def exec(self):
         """Override exec to show dialog only when fully ready."""

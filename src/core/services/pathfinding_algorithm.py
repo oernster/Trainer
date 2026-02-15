@@ -1,36 +1,22 @@
-"""
-Pathfinding Algorithm
+"""Pathfinding Algorithm.
 
-Handles Dijkstra's shortest path algorithm and route finding logic.
+This module keeps the public :class:`PathfindingAlgorithm` API stable while moving
+implementation details into smaller helper modules to satisfy the project LOC gate.
 """
 
-import logging
+from __future__ import annotations
+
 import heapq
-from typing import Dict, List, Optional, Any, Set
-from dataclasses import dataclass
-from pathlib import Path
-import json
+import logging
+from typing import Any, Dict, Optional
 
 from ..interfaces.i_data_repository import IDataRepository
-
-
-@dataclass
-class PathNode:
-    """Node for pathfinding algorithms."""
-    station: str
-    distance: float
-    time: int
-    changes: int
-    path: List[str]
-    lines_used: List[str]
-    
-    def __lt__(self, other):
-        # For priority queue - prioritize by time, then changes, then distance
-        if self.time != other.time:
-            return self.time < other.time
-        if self.changes != other.changes:
-            return self.changes < other.changes
-        return self.distance < other.distance
+from .pathfinding_components.connection_selection import get_best_connection
+from .pathfinding_components.station_lookup import find_station_in_graph
+from .pathfinding_components.types import PathNode
+from .pathfinding_components.underground_bonus import apply_underground_routing_bonus
+from .pathfinding_components.walking_penalties import apply_walking_penalties
+from .pathfinding_components.weight_calculation import calculate_weight
 
 
 class PathfindingAlgorithm:
@@ -46,41 +32,6 @@ class PathfindingAlgorithm:
         self.data_repository = data_repository
         self.logger = logging.getLogger(__name__)
     
-    def find_station_in_graph(self, station_name: str, graph: Dict) -> Optional[str]:
-        """
-        Find a station in the graph, handling London variants.
-        Returns the actual graph key if found, or None if not found.
-        """
-        # Direct lookup first (most efficient)
-        if station_name in graph:
-            return station_name
-            
-        # Try with different case
-        for graph_station in graph:
-            if graph_station.lower() == station_name.lower():
-                self.logger.info(f"Graph lookup (case): '{station_name}' → '{graph_station}'")
-                return graph_station
-                
-        # Handle London prefix variants
-        station_lower = station_name.lower()
-        if station_lower.startswith("london "):
-            # Try without London prefix
-            base_name = station_lower[7:]  # Remove "london "
-            for graph_station in graph:
-                if graph_station.lower() == base_name:
-                    self.logger.info(f"Graph lookup (removed London): '{station_name}' → '{graph_station}'")
-                    return graph_station
-        else:
-            # Try with London prefix
-            london_name = "london " + station_lower
-            for graph_station in graph:
-                if graph_station.lower() == london_name:
-                    self.logger.info(f"Graph lookup (added London): '{station_name}' → '{graph_station}'")
-                    return graph_station
-        
-        # Not found
-        return None
-    
     def dijkstra_shortest_path(self, start: str, end: str, graph: Dict,
                               weight_func: str = 'time',
                               preferences: Optional[Dict[str, Any]] = None) -> Optional[PathNode]:
@@ -95,12 +46,14 @@ class PathfindingAlgorithm:
             preferences: User preferences for routing
         """
         # Handle London station variants in graph lookup
-        graph_start = self.find_station_in_graph(start, graph)
+        graph_start = find_station_in_graph(
+            station_name=start, graph=graph, logger=self.logger
+        )
         if not graph_start:
             self.logger.warning(f"Start station '{start}' not found in network graph")
             return None
-            
-        graph_end = self.find_station_in_graph(end, graph)
+             
+        graph_end = find_station_in_graph(station_name=end, graph=graph, logger=self.logger)
         if not graph_end:
             self.logger.warning(f"End station '{end}' not found in network graph")
             return None
@@ -367,8 +320,14 @@ class PathfindingAlgorithm:
                         self.logger.warning(f"Network may be disconnected if walking is strictly avoided")
                 
                 # Find best connection based on weight function with same-line prioritization
-                best_connection = self._get_best_connection(
-                    connections_to_check, current, start, end, weight_func
+                best_connection = get_best_connection(
+                    connections=connections_to_check,
+                    current=current,
+                    start=start,
+                    end=end,
+                    weight_func=weight_func,
+                    data_repository=self.data_repository,
+                    logger=self.logger,
                 )
                 
                 if not best_connection:
@@ -390,18 +349,33 @@ class PathfindingAlgorithm:
                 new_lines = current.lines_used + [best_connection['line']]
                 
                 # Choose weight based on function
-                weight = self._calculate_weight(
-                    weight_func, new_time, new_distance, new_changes, best_connection
+                weight = calculate_weight(
+                    weight_func=weight_func,
+                    new_time=new_time,
+                    new_distance=new_distance,
+                    new_changes=new_changes,
+                    best_connection=best_connection,
                 )
                 
                 # Apply Underground routing bonus for cross-London journeys
-                weight = self._apply_underground_routing_bonus(
-                    weight, best_connection, current, start, end
+                weight = apply_underground_routing_bonus(
+                    weight=weight,
+                    connection=best_connection,
+                    current=current,
+                    start=start,
+                    end=end,
+                    logger=self.logger,
                 )
                 
                 # Apply penalties for walking connections
-                weight = self._apply_walking_penalties(
-                    weight, best_connection, current.station, avoid_walking, max_walking_distance_km
+                weight = apply_walking_penalties(
+                    weight=weight,
+                    connection=best_connection,
+                    current_station=current.station,
+                    avoid_walking=avoid_walking,
+                    max_walking_distance_km=max_walking_distance_km,
+                    data_repository=self.data_repository,
+                    logger=self.logger,
                 )
                 
                 # Only add to queue if we found a better path
@@ -419,296 +393,11 @@ class PathfindingAlgorithm:
                     
                     heapq.heappush(pq, next_node)
         
-        self.logger.warning(f"No path found from '{start}' to '{end}' after exploring {nodes_explored} nodes")
+        self.logger.warning(
+            "No path found from '%s' to '%s' after exploring %s nodes",
+            start,
+            end,
+            nodes_explored,
+        )
         return None
-    
-    def _get_best_connection(self, connections: List[Dict], current: PathNode, 
-                           start: str, end: str, weight_func: str) -> Optional[Dict]:
-        """Get the best connection based on weight function and priorities."""
-        if not connections:
-            return None
-        
-        def get_connection_priority(conn):
-            """Calculate connection priority - lower is better"""
-            base_weight = conn['time'] if weight_func == 'time' else conn.get('distance', conn['time'])
-            
-            # Special case for Farnborough routes
-            if "Farnborough" in start:
-                if conn['line'] == "South Western Main Line" and "Waterloo" in conn.get('to_station', ""):
-                    self.logger.debug(f"Priority: South Western Main Line to Waterloo")
-                    return base_weight - 100000
-            
-            # Walking connection between Farnborough North and Farnborough (Main)
-            if ("Farnborough North" in current.station and "Farnborough (Main)" in conn['to_station']) or \
-               ("Farnborough (Main)" in current.station and "Farnborough North" in conn['to_station']):
-                self.logger.debug(f"Prioritizing Farnborough walking connection")
-                return base_weight - 10000
-            
-            # Check if both start and end stations are on the same line
-            start_lines = set()
-            end_lines = set()
-            
-            for line in self.data_repository.load_railway_lines():
-                if start in line.stations:
-                    start_lines.add(line.name)
-                if end in line.stations:
-                    end_lines.add(line.name)
-            
-            common_lines = start_lines.intersection(end_lines)
-            
-            # If this connection uses a line that serves both start and end stations,
-            # give it massive priority to prevent line switching
-            if conn['line'] in common_lines:
-                return base_weight - 10000
-            
-            # Strong preference for staying on the same line as the current path
-            if current.lines_used:
-                current_line = current.lines_used[-1]
-                if conn['line'] == current_line:
-                    return base_weight - 1000
-            
-            # Secondary preference for direct connections
-            if conn.get('is_direct', False):
-                return base_weight - 100
-            
-            return base_weight
-        
-        if weight_func == 'changes':
-            def changes_priority(conn):
-                start_lines = set()
-                end_lines = set()
-                
-                for line in self.data_repository.load_railway_lines():
-                    if start in line.stations:
-                        start_lines.add(line.name)
-                    if end in line.stations:
-                        end_lines.add(line.name)
-                
-                common_lines = start_lines.intersection(end_lines)
-                
-                if conn['line'] in common_lines:
-                    return (0, conn['time'] - 20000)
-                
-                if current.lines_used and conn['line'] == current.lines_used[-1]:
-                    return (0, conn['time'] - 2000)
-                elif conn.get('is_direct', False):
-                    return (0, conn['time'] - 1000)
-                else:
-                    return (1, conn['time'])
-            
-            return min(connections, key=changes_priority)
-        else:
-            return min(connections, key=get_connection_priority)
-    
-    def _calculate_weight(self, weight_func: str, new_time: int, new_distance: float, 
-                         new_changes: int, best_connection: Dict) -> float:
-        """Calculate the weight for pathfinding based on the weight function."""
-        if weight_func == 'time':
-            return new_time
-        elif weight_func == 'distance':
-            return new_distance
-        elif weight_func == 'changes':
-            # Heavily penalize changes, but give direct connections a big advantage
-            direct_bonus = 0 if best_connection.get('is_direct', False) else 1000
-            return (new_changes * 1000) + direct_bonus + new_time
-        else:
-            return new_time
-    
-    def _apply_walking_penalties(self, weight: float, connection: Dict, current_station: str,
-                               avoid_walking: bool, max_walking_distance_km: float) -> float:
-        """Apply penalties for walking connections based on preferences."""
-        # Check if this is a walking connection
-        is_walking = False
-        
-        from_station = current_station
-        to_station = connection['to_station']
-        
-        # Check if this is explicitly defined as a walking connection
-        interchange_connections = self._load_interchange_connections()
-        for ic in interchange_connections.get('connections', []):
-            if ((ic.get('from_station') == from_station and ic.get('to_station') == to_station) or
-                (ic.get('from_station') == to_station and ic.get('to_station') == from_station)):
-                if ic.get('connection_type') == 'WALKING':
-                    is_walking = True
-                    self.logger.debug(f"Walking connection detected: {from_station} -> {to_station} (from interchange_connections.json)")
-                    break
-        
-        if not is_walking:
-            # Use Haversine distance calculation to determine if this is a walking connection
-            from_coords = None
-            to_coords = None
-            
-            for ic in interchange_connections.get('connections', []):
-                if ((ic.get('from_station') == from_station and ic.get('to_station') == to_station) or
-                    (ic.get('from_station') == to_station and ic.get('to_station') == from_station)):
-                    coords = ic.get('coordinates', {})
-                    if coords:
-                        if ic.get('from_station') == from_station:
-                            from_coords = coords.get('from')
-                            to_coords = coords.get('to')
-                        else:
-                            from_coords = coords.get('to')
-                            to_coords = coords.get('from')
-                        break
-            
-            # If we have coordinates, use Haversine distance to determine walking connection
-            if from_coords and to_coords:
-                haversine_distance_km = self._calculate_haversine_distance(from_coords, to_coords)
-                self.logger.debug(f"Haversine distance: {from_station} -> {to_station} = {haversine_distance_km:.3f}km")
-                
-                if haversine_distance_km > max_walking_distance_km:
-                    is_walking = True
-                    self.logger.debug(f"Walking connection by distance: {from_station} -> {to_station} ({haversine_distance_km:.3f}km > {max_walking_distance_km}km)")
-            else:
-                # Fallback: Check if they're on the same line
-                same_line = False
-                for line in self.data_repository.load_railway_lines():
-                    line_stations = [s.replace(" (Main)", "").replace(" (Cross Country Line)", "")
-                                   for s in line.stations]
-                    clean_from = from_station.replace(" (Main)", "").replace(" (Cross Country Line)", "")
-                    clean_to = to_station.replace(" (Main)", "").replace(" (Cross Country Line)", "")
-                    
-                    if clean_from in line_stations and clean_to in line_stations:
-                        same_line = True
-                        break
-                
-                distance_km = connection.get('distance', 0)
-                
-                if not same_line and distance_km > max_walking_distance_km:
-                    is_walking = True
-                    self.logger.debug(f"Walking connection by fallback: {from_station} -> {to_station} (not same line, distance: {distance_km:.3f}km)")
-        
-        # Also check the explicit flags
-        if is_walking or connection.get('line') == 'WALKING' or connection.get('is_walking_connection', False):
-            if avoid_walking:
-                # This should have been filtered out earlier, but just in case
-                self.logger.debug(f"Avoid walking: Skipping walking connection: {current_station} -> {to_station}")
-                return float('inf')  # Make it impossible to select
-            else:
-                # Allow walking connections but mark them properly
-                connection['is_walking_connection'] = True
-                connection['line'] = 'WALKING'
-                
-                # Use a small penalty to prioritize non-walking connections but allow walking
-                penalty_multiplier = connection.get('walking_penalty', 2)
-                
-                original_weight = weight
-                weight = weight * penalty_multiplier
-                self.logger.debug(f"Walking connection allowed: {current_station} -> {to_station} (penalty applied: {original_weight} -> {weight})")
-        
-        return weight
-    
-    def _calculate_haversine_distance(self, coord1: Dict, coord2: Dict) -> float:
-        """Calculate the Haversine distance between two coordinates in kilometers."""
-        import math
-        
-        # Extract coordinates (using 'lat' and 'lng' keys from JSON data)
-        lat1 = math.radians(coord1['lat'])
-        lon1 = math.radians(coord1['lng'])
-        lat2 = math.radians(coord2['lat'])
-        lon2 = math.radians(coord2['lng'])
-        
-        # Haversine formula
-        dlat = lat2 - lat1
-        dlon = lon2 - lon1
-        
-        a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
-        c = 2 * math.asin(math.sqrt(a))
-        
-        # Earth's radius in kilometers
-        earth_radius_km = 6371.0
-        
-        return earth_radius_km * c
-    
-    def _load_interchange_connections(self) -> dict:
-        """Load interchange connections from JSON file."""
-        try:
-            # Try to use data path resolver
-            try:
-                from ...utils.data_path_resolver import get_data_file_path
-                interchange_file = get_data_file_path("interchange_connections.json")
-            except (ImportError, FileNotFoundError):
-                # Fallback to old method
-                interchange_file = Path("src/data/interchange_connections.json")
-                
-            if not interchange_file.exists():
-                self.logger.warning("Interchange connections file not found")
-                return {}
-            
-            with open(interchange_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            return data
-        except Exception as e:
-            self.logger.error(f"Failed to load interchange connections: {e}")
-            return {}
-    
-    def _apply_underground_routing_bonus(self, weight: float, connection: Dict, current: 'PathNode',
-                                        start: str, end: str) -> float:
-        """Apply bonus for Underground routing when it's beneficial for cross-London journeys."""
-        # Check if this connection involves Underground routing
-        if connection.get('line') != 'London Underground':
-            return weight
-        
-        # Calculate journey characteristics
-        from_is_london = "London" in start
-        to_is_london = "London" in end
-        journey_distance = current.distance
-        to_station = connection.get('to_station', '')
-        
-        # Check for specific cross-country routes that should use London Underground
-        is_cross_country_route = False
-        if ("Southampton" in start and "Glasgow" in end) or ("Glasgow" in start and "Southampton" in end):
-            is_cross_country_route = True
-            self.logger.info(f"Detected cross-country route that should use London Underground: {start} → {end}")
-        
-        # Major London terminals that are well-connected via Underground
-        major_terminals = [
-            "London Waterloo", "London Liverpool Street", "London Victoria", "London Paddington",
-            "London Kings Cross", "London St Pancras", "London Euston", "London Bridge"
-        ]
-        
-        # Check if this Underground connection goes to a major terminal
-        connects_to_major_terminal = to_station in major_terminals
-        
-        # Apply different bonuses based on journey type
-        bonus_factor = 1.0  # Default: no bonus
-        original_weight = weight
-        
-        # 1. Cross-London journeys (National Rail -> Underground -> National Rail)
-        is_cross_london_journey = (not from_is_london and not to_is_london and
-                                  (journey_distance > 20 or is_cross_country_route))
-        
-        # 2. Routes to major terminals (faster than complex National Rail routing)
-        if connects_to_major_terminal:
-            if is_cross_london_journey:
-                # Major bonus for cross-London routes via major terminals
-                # Underground crossing London typically takes 25-30 minutes vs 2+ hours via National Rail
-                bonus_factor = 0.3  # 70% weight reduction - makes Underground very attractive
-                self.logger.info(f"Major Underground bonus (cross-London via terminal): {current.station} -> {to_station}")
-                
-                # Even stronger bonus for cross-country routes
-                if is_cross_country_route:
-                    bonus_factor = 0.2  # 80% weight reduction - strongly prefer Underground for cross-country
-                    self.logger.info(f"Extra Underground bonus for cross-country route: {start} → {end}")
-            elif journey_distance > 15:
-                # Medium bonus for routes to terminals from moderate distances
-                bonus_factor = 0.6  # 40% weight reduction
-                self.logger.info(f"Medium Underground bonus (to terminal): {current.station} -> {to_station}")
-            else:
-                # Small bonus for short routes to terminals
-                bonus_factor = 0.8  # 20% weight reduction
-                self.logger.info(f"Small Underground bonus (short to terminal): {current.station} -> {to_station}")
-        elif is_cross_london_journey:
-            # Standard bonus for cross-London journeys not via major terminals
-            bonus_factor = 0.7  # 30% weight reduction
-            self.logger.info(f"Standard Underground bonus (cross-London): {current.station} -> {to_station}")
-        
-        # Apply the bonus
-        if bonus_factor < 1.0:
-            weight = weight * bonus_factor
-            self.logger.info(f"Underground routing bonus applied: {current.station} -> {to_station} "
-                           f"(weight: {original_weight:.1f} -> {weight:.1f}, factor: {bonus_factor})")
-        
-        return weight
         

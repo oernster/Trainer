@@ -15,6 +15,8 @@ from ..widgets.train_list_widget import TrainListWidget
 from ..weather_widgets import WeatherWidget
 from ..astronomy_widgets import AstronomyWidget
 
+from .ui_layout_styles import header_button_stylesheet, menu_bar_stylesheet
+
 logger = logging.getLogger(__name__)
 
 
@@ -89,7 +91,11 @@ class UILayoutManager:
     
     def _create_weather_widget(self, layout: QVBoxLayout) -> None:
         """Create and configure the weather widget."""
-        self.weather_widget = WeatherWidget(scale_factor=self.ui_scale_factor)
+        # Provide an explicit parent so widgets are safely updated before the
+        # main window is shown (signals can arrive during splash/init).
+        parent_widget = layout.parentWidget() if hasattr(layout, "parentWidget") else None
+
+        self.weather_widget = WeatherWidget(scale_factor=self.ui_scale_factor, parent=parent_widget)
         self.weather_widget.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.weather_widget)
         
@@ -104,7 +110,9 @@ class UILayoutManager:
     
     def _create_astronomy_widget(self, layout: QVBoxLayout) -> None:
         """Create and configure the astronomy widget."""
-        self.astronomy_widget = AstronomyWidget(scale_factor=self.ui_scale_factor)
+        parent_widget = layout.parentWidget() if hasattr(layout, "parentWidget") else None
+
+        self.astronomy_widget = AstronomyWidget(scale_factor=self.ui_scale_factor, parent=parent_widget)
         self.astronomy_widget.setContentsMargins(0, 0, 0, 5)
         layout.addWidget(self.astronomy_widget)
         
@@ -118,7 +126,13 @@ class UILayoutManager:
     
     def _create_train_list_widget(self, layout: QVBoxLayout) -> None:
         """Create and configure the train list widget."""
-        self.train_list_widget = TrainListWidget(max_trains=50)
+        # NOTE:
+        # Train updates can arrive *before* the main window is shown.
+        # Ensure the widget has a parent early so `TrainListWidget.update_trains()`
+        # doesn't bail out and drop the initial render.
+        parent_widget = layout.parentWidget() if hasattr(layout, "parentWidget") else None
+
+        self.train_list_widget = TrainListWidget(max_trains=50, parent=parent_widget)
         self.train_list_widget.setContentsMargins(0, 5, 0, 0)
         layout.addWidget(self.train_list_widget)
         logger.debug("Train list widget created and added to layout")
@@ -406,45 +420,8 @@ class UILayoutManager:
         theme_manager = getattr(self.main_window, 'theme_manager', None)
         if not theme_manager:
             return
-            
-        # Get current theme colors
-        if theme_manager.current_theme == "dark":
-            button_style = """
-            QPushButton {
-                background-color: #2d2d2d;
-                border: 1px solid #404040;
-                border-radius: 4px;
-                color: #ffffff;
-                padding: 4px;
-                font-size: 24px;
-            }
-            QPushButton:hover {
-                background-color: #404040;
-                border-color: #1976d2;
-            }
-            QPushButton:pressed {
-                background-color: #1976d2;
-            }
-            """
-        else:
-            button_style = """
-            QPushButton {
-                background-color: #f0f0f0;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                color: #000000;
-                padding: 4px;
-                font-size: 24px;
-            }
-            QPushButton:hover {
-                background-color: #e0e0e0;
-                border-color: #1976d2;
-            }
-            QPushButton:pressed {
-                background-color: #1976d2;
-                color: #ffffff;
-            }
-            """
+
+        button_style = header_button_stylesheet(theme_manager.current_theme)
         
         if hasattr(self, 'theme_button'):
             self.theme_button.setStyleSheet(button_style)
@@ -480,94 +457,7 @@ class UILayoutManager:
         theme_manager = getattr(self.main_window, 'theme_manager', None)
         if not theme_manager:
             return
-            
-        # Get current theme colors
-        if theme_manager.current_theme == "dark":
-            menu_style = """
-            QMenuBar {
-                background-color: #2d2d2d;
-                color: #ffffff;
-                border: none;
-                border-bottom: none;
-                padding: 2px;
-                margin: 0px;
-            }
-            QMenuBar::item {
-                background-color: transparent;
-                padding: 4px 8px;
-                margin: 0px;
-                border: none;
-            }
-            QMenuBar::item:selected {
-                background-color: #1976d2;
-                color: #ffffff;
-            }
-            QMenuBar::item:pressed {
-                background-color: #0d47a1;
-            }
-            QMenu {
-                background-color: #2d2d2d;
-                color: #ffffff;
-                border: 1px solid #404040;
-            }
-            QMenu::item {
-                padding: 4px 20px;
-                background-color: transparent;
-            }
-            QMenu::item:selected {
-                background-color: #1976d2;
-                color: #ffffff;
-            }
-            QMenu::separator {
-                height: 1px;
-                background-color: #404040;
-                margin: 2px 0px;
-            }
-            """
-        else:
-            menu_style = """
-            QMenuBar {
-                background-color: #f0f0f0;
-                color: #000000;
-                border: none;
-                border-bottom: none;
-                padding: 2px;
-                margin: 0px;
-            }
-            QMenuBar::item {
-                background-color: transparent;
-                padding: 4px 8px;
-                margin: 0px;
-                border: none;
-            }
-            QMenuBar::item:selected {
-                background-color: #1976d2;
-                color: #ffffff;
-            }
-            QMenuBar::item:pressed {
-                background-color: #0d47a1;
-            }
-            QMenu {
-                background-color: #ffffff;
-                color: #000000;
-                border: 1px solid #cccccc;
-            }
-            QMenu::item {
-                padding: 4px 20px;
-                background-color: transparent;
-            }
-            QMenu::item:selected {
-                background-color: #1976d2;
-                color: #ffffff;
-            }
-            QMenu::separator {
-                height: 1px;
-                background-color: #cccccc;
-                margin: 2px 0px;
-            }
-            """
-
-        menubar.setStyleSheet(menu_style)
+        menubar.setStyleSheet(menu_bar_stylesheet(theme_manager.current_theme))
     
     def update_theme_elements(self, theme_name: str) -> None:
         """Update theme-related UI elements."""

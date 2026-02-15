@@ -7,13 +7,10 @@ following solid Object-Oriented design principles with proper
 abstraction, error handling, and caching.
 """
 
-import asyncio
 import aiohttp
 import logging
-from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
-from dataclasses import dataclass
 
 from version import (
     __weather_version__,
@@ -29,86 +26,18 @@ from ..models.weather_data import (
 )
 from ..managers.weather_config import WeatherConfig
 
+from .weather_api_types import (
+    HTTPClient,
+    WeatherAPIException,
+    WeatherAPIResponse,
+    WeatherDataException,
+    WeatherDataSource,
+    WeatherNetworkException,
+)
+
 logger = logging.getLogger(__name__)
 
-class WeatherAPIException(Exception):
-    """Base exception for weather API-related errors."""
-
-    pass
-
-class WeatherNetworkException(WeatherAPIException):
-    """Exception for network-related errors."""
-
-    pass
-
-class WeatherDataException(WeatherAPIException):
-    """Exception for weather data processing errors."""
-
-    pass
-
-class WeatherRateLimitException(WeatherAPIException):
-    """Exception for rate limit exceeded errors."""
-
-    pass
-
-@dataclass
-class WeatherAPIResponse:
-    """Container for raw weather API response data."""
-
-    status_code: int
-    data: Dict
-    timestamp: datetime
-    source: str
-
-class WeatherDataSource(ABC):
-    """
-    Abstract base class for weather data sources.
-
-    Follows Open/Closed Principle - open for extension, closed for modification.
-    """
-
-    @abstractmethod
-    async def fetch_weather_data(self, location: Location) -> WeatherForecastData:
-        """Fetch weather data from source."""
-        pass
-
-    @abstractmethod
-    def get_source_name(self) -> str:
-        """Get the name of the weather data source."""
-        pass
-
-    @abstractmethod
-    def get_source_url(self) -> str:
-        """Get the base URL of the weather data source."""
-        pass
-
-    @abstractmethod
-    async def shutdown(self) -> None:
-        """Shutdown the weather data source and cleanup resources."""
-        pass
-
-    @abstractmethod
-    def shutdown_sync(self) -> None:
-        """Shutdown the weather data source synchronously."""
-        pass
-
-class HTTPClient(ABC):
-    """Abstract HTTP client interface for dependency injection."""
-
-    @abstractmethod
-    async def get(self, url: str, params: Dict) -> WeatherAPIResponse:
-        """Make HTTP GET request."""
-        pass
-
-    @abstractmethod
-    async def close(self) -> None:
-        """Close HTTP client."""
-        pass
-
-    @abstractmethod
-    def close_sync(self) -> None:
-        """Close HTTP client synchronously."""
-        pass
+ 
 
 class AioHttpClient(HTTPClient):
     """
@@ -534,23 +463,6 @@ class WeatherAPIManager:
         self.clear_cache()
         logger.debug("WeatherAPIManager synchronous shutdown complete")
 
-class WeatherAPIFactory:
-    """
-    Factory for creating weather API managers.
 
-    Implements Factory pattern for easy instantiation.
-    """
-
-    @staticmethod
-    def create_openmeteo_manager(config: WeatherConfig) -> WeatherAPIManager:
-        """Create weather manager using Open-Meteo API."""
-        http_client = AioHttpClient(timeout_seconds=config.timeout_seconds)
-        weather_source = OpenMeteoWeatherSource(http_client, config)
-        return WeatherAPIManager(weather_source, config)
-
-    @staticmethod
-    def create_manager_from_config(config: WeatherConfig) -> WeatherAPIManager:
-        """Create weather manager based on configuration."""
-        # For now, only Open-Meteo is supported
-        # This can be extended to support multiple providers
-        return WeatherAPIFactory.create_openmeteo_manager(config)
+# Backwards-compatible re-export
+from .weather_api_factories import WeatherAPIFactory  # noqa: E402

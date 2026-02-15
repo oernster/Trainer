@@ -9,7 +9,7 @@ from typing import List
 from PySide6.QtWidgets import QWidget, QHBoxLayout
 from PySide6.QtCore import Signal
 
-from ...models.astronomy_data import AstronomyForecastData, AstronomyEvent
+from ...services.astronomy_ui_facade import AstronomyEventDTO
 from .daily_astronomy_panel import DailyAstronomyPanel
 
 from ...utils.astronomy_icon_allocator import assign_unique_event_icons
@@ -25,7 +25,7 @@ class AstronomyForecastPanel(QWidget):
     displaying the astronomy forecast overview.
     """
 
-    event_icon_clicked = Signal(AstronomyEvent)
+    event_icon_clicked = Signal(object)
 
     def __init__(self, parent=None, scale_factor=1.0):
         """Initialize astronomy forecast panel."""
@@ -53,26 +53,29 @@ class AstronomyForecastPanel(QWidget):
                 scaled_spacing = int(2 * self._scale_factor)  # Reduced spacing
                 layout.addSpacing(scaled_spacing)
 
-    def update_forecast(self, forecast_data: AstronomyForecastData) -> None:
+    def update_forecast(self, forecast_data: object) -> None:
         """Update forecast display with new data."""
-        # Compute icon overrides ensuring uniqueness across the full 7-day grid.
-        # We align with the exact ordering used by each DailyAstronomyPanel
-        # (sorted-by-priority, first 4 events).
-        days_events = [
-            day.get_sorted_events(by_priority=True)[:4]
-            for day in forecast_data.daily_astronomy[:7]
-        ]
-        icon_overrides_by_day = assign_unique_event_icons(days_events, per_day_limit=4)
+        # UI must not depend on domain-layer forecast structures.
+        # The service layer should provide panel-ready DTOs.
+        # For now, accept the object and pass through to DailyAstronomyPanel
+        # only if it provides `daily_astronomy`.
+        daily = getattr(forecast_data, "daily_astronomy", [])
 
-        # Update each daily panel
+        days_events = [
+            getattr(day, "get_sorted_events")(by_priority=True)[:4]
+            for day in daily[:7]
+            if hasattr(day, "get_sorted_events")
+        ]
+        icon_overrides_by_day = assign_unique_event_icons(days_events, per_day_limit=4) if days_events else []
+
         for i, panel in enumerate(self._daily_panels):
-            if i < len(forecast_data.daily_astronomy):
+            if i < len(daily):
                 overrides = icon_overrides_by_day[i] if i < len(icon_overrides_by_day) else None
-                panel.update_data(forecast_data.daily_astronomy[i], icon_overrides=overrides)
+                panel.update_data(daily[i], icon_overrides=overrides)
                 panel.show()
             else:
                 panel.hide()
 
         logger.debug(
-            f"Updated astronomy forecast panel with {len(forecast_data.daily_astronomy)} days"
+            f"Updated astronomy forecast panel with {len(daily)} days"
         )

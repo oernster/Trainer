@@ -23,7 +23,7 @@ from typing import List, Optional, Tuple
 from PySide6.QtCore import QObject, Signal, QTimer
 
 from ..models.train_data import TrainData
-from ..managers.config_manager import ConfigData
+from ..managers.config_models import ConfigData
 from ..core.services.service_factory import ServiceFactory
 from ..core.interfaces.i_route_service import IRouteService
 from ..core.interfaces.i_station_service import IStationService

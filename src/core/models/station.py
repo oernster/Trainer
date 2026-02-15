@@ -29,13 +29,13 @@ class Station:
         if not self.name or not self.name.strip():
             raise ValueError("Station name cannot be empty")
         
-        # Ensure interchange is a list if provided
-        if self.interchange is not None and not isinstance(self.interchange, list):
-            object.__setattr__(self, 'interchange', list(self.interchange))
-        
-        # Ensure facilities is a list if provided
-        if self.facilities is not None and not isinstance(self.facilities, list):
-            object.__setattr__(self, 'facilities', list(self.facilities))
+        # Ensure interchange is a list if provided.
+        if self.interchange is not None:
+            object.__setattr__(self, "interchange", list(self.interchange))
+
+        # Ensure facilities is a list if provided.
+        if self.facilities is not None:
+            object.__setattr__(self, "facilities", list(self.facilities))
     
     @property
     def is_interchange(self) -> bool:
@@ -110,58 +110,43 @@ class Station:
         return self.interchange is not None and line_name in self.interchange
     
     def is_underground_station(self) -> bool:
-        """Check if this is a pure underground station."""
-        from ...managers.services.train_data_service import TrainDataService
-        data_service = TrainDataService()
-        
-        # Initialize data repository if needed
-        if data_service._data_repo_cache is None:
-            from ..services.json_data_repository import JsonDataRepository
-            data_service._data_repo_cache = JsonDataRepository()
-        
-        # Use the cached underground handler from TrainDataService
-        if data_service._underground_handler_cache is None:
-            from ..services.underground_routing_handler import UndergroundRoutingHandler
-            data_service._underground_handler_cache = UndergroundRoutingHandler(data_service._data_repo_cache)
-        
-        return data_service._underground_handler_cache.is_underground_station(self.name)
+        """Check if this is a pure underground station.
+
+        NOTE: Domain layer must not depend on services. This method is kept for
+        backwards compatibility but intentionally raises.
+
+        Call the relevant service (e.g. `UndergroundRoutingHandler`) from the
+        application/service layer instead.
+        """
+
+        raise NotImplementedError(
+            "Station.is_underground_station() is a domain model and may not call services. "
+            "Use a service-layer routing/lookup component instead."
+        )
     
     def get_underground_system(self) -> Optional[str]:
-        """Get the underground system this station belongs to."""
-        from ...managers.services.train_data_service import TrainDataService
-        data_service = TrainDataService()
-        
-        # Initialize data repository if needed
-        if data_service._data_repo_cache is None:
-            from ..services.json_data_repository import JsonDataRepository
-            data_service._data_repo_cache = JsonDataRepository()
-        
-        # Use the cached underground handler from TrainDataService
-        if data_service._underground_handler_cache is None:
-            from ..services.underground_routing_handler import UndergroundRoutingHandler
-            data_service._underground_handler_cache = UndergroundRoutingHandler(data_service._data_repo_cache)
-        
-        system_info = data_service._underground_handler_cache.get_underground_system(self.name)
-        if system_info:
-            return system_info[1]  # Return the system name (second element in tuple)
-        return None
+        """Get the underground system this station belongs to.
+
+        NOTE: Domain layer must not depend on services. This method is kept for
+        backwards compatibility but intentionally raises.
+        """
+
+        raise NotImplementedError(
+            "Station.get_underground_system() is a domain model and may not call services. "
+            "Use a service-layer routing/lookup component instead."
+        )
     
     def is_mixed_station(self) -> bool:
-        """Check if this station has both underground and mainline connections."""
-        from ...managers.services.train_data_service import TrainDataService
-        data_service = TrainDataService()
-        
-        # Initialize data repository if needed
-        if data_service._data_repo_cache is None:
-            from ..services.json_data_repository import JsonDataRepository
-            data_service._data_repo_cache = JsonDataRepository()
-        
-        # Use the cached underground handler from TrainDataService
-        if data_service._underground_handler_cache is None:
-            from ..services.underground_routing_handler import UndergroundRoutingHandler
-            data_service._underground_handler_cache = UndergroundRoutingHandler(data_service._data_repo_cache)
-        
-        return data_service._underground_handler_cache.is_mixed_station(self.name)
+        """Check if this station has both underground and mainline connections.
+
+        NOTE: Domain layer must not depend on services. This method is kept for
+        backwards compatibility but intentionally raises.
+        """
+
+        raise NotImplementedError(
+            "Station.is_mixed_station() is a domain model and may not call services. "
+            "Use a service-layer routing/lookup component instead."
+        )
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert station to dictionary representation."""
@@ -190,7 +175,7 @@ class Station:
             operator=data.get("operator"),
             zone=data.get("zone"),
             accessibility=data.get("accessibility"),
-            facilities=data.get("facilities")
+            facilities=data.get("facilities"),
         )
     
     def __str__(self) -> str:

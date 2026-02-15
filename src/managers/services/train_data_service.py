@@ -276,99 +276,14 @@ class TrainDataService:
         return calling_points
 
     def _extract_intermediate_stations(self, route_result, from_station: str, to_station: str) -> List[str]:
-        """Extract intermediate stations from route result, respecting Underground black box segments."""
-        intermediate_stations = []
-        underground_segments_processed = []
-        underground_systems_added = set()  # Track which underground systems we've already added indicators for
-        
-        # Check if we have route segments to analyze
-        if hasattr(route_result, 'segments') and route_result.segments:
-            # Extract stations from segments, but handle Underground black box segments specially
-            for segment in route_result.segments:
-                if not hasattr(segment, 'service_pattern') or not hasattr(segment, 'from_station') or not hasattr(segment, 'to_station'):
-                    continue
-                
-                # For Underground black box segments, add a special Underground indicator instead of endpoints
-                if getattr(segment, 'service_pattern', '') == 'UNDERGROUND':
-                    logger.debug(f"Underground black box segment: {segment.from_station} -> {segment.to_station} (using black box display)")
-                    
-                    # Create a unique identifier for this underground segment to avoid duplicates
-                    segment_id = f"{segment.from_station}->{segment.to_station}-{getattr(segment, 'line_name', 'Underground')}"
-                    system_name = getattr(segment, 'line_name', 'Underground')
-                    
-                    # Only process each unique underground segment once
-                    if segment_id not in underground_segments_processed:
-                        underground_segments_processed.append(segment_id)
-                        
-                        # Add the from_station if it's not origin/destination and not already added
-                        from_station_name = segment.from_station
-                        if (from_station_name != from_station and from_station_name != to_station and
-                            from_station_name not in intermediate_stations):
-                            intermediate_stations.append(from_station_name)
-                        
-                        # Only add one underground indicator per system type to prevent duplicates
-                        if system_name not in underground_systems_added:
-                            underground_indicator = self._get_underground_indicator_for_segment(segment)
-                            if underground_indicator not in intermediate_stations:
-                                intermediate_stations.append(underground_indicator)
-                                underground_systems_added.add(system_name)
-                                logger.debug(f"Added underground indicator for {system_name}")
-                        else:
-                            logger.debug(f"Skipping duplicate underground indicator for {system_name}")
-                        
-                        # Add the to_station if it's not origin/destination and not already added
-                        to_station_name = segment.to_station
-                        if (to_station_name != from_station and to_station_name != to_station and
-                            to_station_name not in intermediate_stations):
-                            intermediate_stations.append(to_station_name)
-                    continue
-                
-                # For normal National Rail segments, add ALL intermediate stations
-                from_station_name = segment.from_station
-                to_station_name = segment.to_station
-                
-                if (from_station_name != from_station and from_station_name != to_station and
-                    from_station_name not in intermediate_stations):
-                    intermediate_stations.append(from_station_name)
-                
-                if (to_station_name != from_station and to_station_name != to_station and
-                    to_station_name not in intermediate_stations):
-                    intermediate_stations.append(to_station_name)
-            
-            logger.debug(f"Extracted {len(intermediate_stations)} intermediate stations from segments (National Rail + Underground endpoints)")
-            logger.debug(f"Underground systems processed: {underground_systems_added}")
-        
-        # Fallback: Try to get from full_path but filter out Underground-only stations
-        elif hasattr(route_result, 'full_path') and route_result.full_path:
-            full_path = route_result.full_path
-            if len(full_path) > 2:
-                # Filter the full path to exclude Underground-only stations
-                for station in full_path[1:-1]:  # Exclude origin and destination
-                    # Only add if it's not an Underground-only station or if it's a major terminus
-                    if self._should_show_station_in_calling_points(station):
-                        intermediate_stations.append(station)
-                logger.debug(f"Using filtered full_path with {len(intermediate_stations)} intermediate stations")
-        
-        # If we still don't have enough stations, try to use full_path regardless of segments
-        if len(intermediate_stations) <= 1 and hasattr(route_result, 'full_path') and route_result.full_path:
-            logger.debug("Segments didn't provide enough detail, using full_path as primary source")
-            intermediate_stations = []
-            full_path = route_result.full_path
-            if len(full_path) > 2:
-                for station in full_path[1:-1]:  # Exclude origin and destination
-                    if self._should_show_station_in_calling_points(station):
-                        intermediate_stations.append(station)
-                logger.debug(f"Using full_path as primary source with {len(intermediate_stations)} intermediate stations")
-        
-        # Fallback to intermediate_stations property
-        elif hasattr(route_result, 'intermediate_stations') and route_result.intermediate_stations:
-            # Filter intermediate stations as well
-            for station in route_result.intermediate_stations:
-                if self._should_show_station_in_calling_points(station):
-                    intermediate_stations.append(station)
-            logger.debug(f"Using filtered intermediate_stations property with {len(intermediate_stations)} stations")
-        
-        return intermediate_stations
+        from .train_data_components.intermediate_stations import extract_intermediate_stations
+
+        return extract_intermediate_stations(
+            service=self,
+            route_result=route_result,
+            from_station=from_station,
+            to_station=to_station,
+        )
 
     def _should_show_station_in_calling_points(self, station_name: str) -> bool:
         """
@@ -460,173 +375,20 @@ class TrainDataService:
 
     def _process_walking_connections(self, station_name: str, segments, calling_points: List[CallingPoint],
                                    station_time: datetime) -> str:
-        """Process walking connections and add walking info if needed."""
-        # Check if avoid_walking preference is enabled
-        avoid_walking = False
-        if self.config and hasattr(self.config, 'avoid_walking'):
-            avoid_walking = self.config.avoid_walking
-        
-        # Check if this is a walking connection
-        is_walking = False
-        walking_distance = None
-        walking_time = None
-        
-        # Look for walking segments to/from this station
-        for segment in segments:
-            if hasattr(segment, 'line_name') and segment.line_name == 'WALKING':
-                if (hasattr(segment, 'from_station') and hasattr(segment, 'to_station') and
-                    (segment.from_station == station_name or segment.to_station == station_name)):
-                    is_walking = True
-                    walking_distance = getattr(segment, 'distance_km', None)
-                    walking_time = getattr(segment, 'journey_time_minutes', None)
-                    
-                    # Calculate walking time if not provided (4mph = 0.107km/min)
-                    if not walking_time and walking_distance:
-                        walking_time = int(walking_distance / 0.107)
-                    
-                    break
-        
-        # Also check for service_pattern="WALKING"
-        if not is_walking:
-            for segment in segments:
-                if hasattr(segment, 'service_pattern') and segment.service_pattern == 'WALKING':
-                    if (hasattr(segment, 'from_station') and hasattr(segment, 'to_station') and
-                        (segment.from_station == station_name or segment.to_station == station_name)):
-                        is_walking = True
-                        walking_distance = getattr(segment, 'distance_km', None)
-                        walking_time = getattr(segment, 'journey_time_minutes', None)
-                        
-                        if not walking_time and walking_distance:
-                            walking_time = int(walking_distance / 0.107)
-                        
-                        break
-        
-        # If this is a walking connection and avoid_walking is disabled, add walking info
-        if is_walking and not avoid_walking:
-            # Find previous station for walking connection
-            prev_station = None
-            if len(calling_points) > 0:
-                prev_station = calling_points[-1].station_name
-            
-            # Create walking info text
-            if walking_distance and walking_time:
-                walking_text = f"<font color='#f44336'>Walk {walking_distance:.1f}km ({walking_time}min)</font>"
-            elif walking_distance:
-                walking_text = f"<font color='#f44336'>Walk {walking_distance:.1f}km</font>"
-            else:
-                walking_text = f"<font color='#f44336'>Walking connection</font>"
-            
-            # Insert walking info calling point
-            if prev_station:
-                walk_time = station_time - timedelta(minutes=int(walking_time or 10))
-                
-                walking_point = CallingPoint(
-                    station_name=walking_text,
-                    scheduled_arrival=walk_time,
-                    scheduled_departure=walk_time,
-                    expected_arrival=walk_time,
-                    expected_departure=walk_time,
-                    platform=None,
-                    is_origin=False,
-                    is_destination=False
-                )
-                calling_points.append(walking_point)
-                logger.info(f"Added walking text between {prev_station} and {station_name}")
-        
-        elif is_walking and avoid_walking:
-            logger.info(f"Skipping walking connection display for {station_name} due to avoid_walking preference")
-        
-        return station_name
+        from .train_data_components.walking_display import process_walking_connection_display
+
+        return process_walking_connection_display(
+            service=self,
+            station_name=station_name,
+            segments=segments,
+            calling_points=calling_points,
+            station_time=station_time,
+        )
 
     def process_train_data(self, trains: List[TrainData]) -> List[TrainData]:
-        """
-        Process and filter raw train data.
+        from .train_data_components.post_processing import process_train_data
 
-        Args:
-            trains: Raw train data
-
-        Returns:
-            Processed and filtered train data with essential stations only
-        """
-        from ...utils.helpers import filter_trains_by_status, sort_trains_by_departure
-        from ...core.services.essential_stations_filter import EssentialStationsFilter
-        
-        # Filter by status - never show cancelled trains
-        filtered_trains = filter_trains_by_status(trains, include_cancelled=False)
-        
-        # Sort by departure time
-        sorted_trains = sort_trains_by_departure(filtered_trains)
-        
-        # Apply essential stations filter to reduce UI complexity while preserving full route
-        processed_trains = []
-        for train in sorted_trains:
-            try:
-                # Filter calling points to essential stations only for main display
-                essential_calling_points = EssentialStationsFilter.filter_to_essential_stations(
-                    train.calling_points, train.route_segments
-                )
-                
-                # Create new TrainData with filtered calling points for main display
-                # but preserve full calling points for route dialog
-                filtered_train = TrainData(
-                    departure_time=train.departure_time,
-                    scheduled_departure=train.scheduled_departure,
-                    destination=train.destination,
-                    platform=train.platform,
-                    operator=train.operator,
-                    service_type=train.service_type,
-                    status=train.status,
-                    delay_minutes=train.delay_minutes,
-                    estimated_arrival=train.estimated_arrival,
-                    journey_duration=train.journey_duration,
-                    current_location=train.current_location,
-                    train_uid=train.train_uid,
-                    service_id=train.service_id,
-                    calling_points=essential_calling_points,  # Filtered for main display
-                    route_segments=train.route_segments,
-                    full_calling_points=train.calling_points  # Complete route for route dialog
-                )
-                
-                processed_trains.append(filtered_train)
-                
-            except Exception as e:
-                logger.warning(f"Error filtering stations for train {train.service_id}: {e}")
-                # Fall back to original train data if filtering fails
-                # Ensure full_calling_points is set even in fallback
-                fallback_train = TrainData(
-                    departure_time=train.departure_time,
-                    scheduled_departure=train.scheduled_departure,
-                    destination=train.destination,
-                    platform=train.platform,
-                    operator=train.operator,
-                    service_type=train.service_type,
-                    status=train.status,
-                    delay_minutes=train.delay_minutes,
-                    estimated_arrival=train.estimated_arrival,
-                    journey_duration=train.journey_duration,
-                    current_location=train.current_location,
-                    train_uid=train.train_uid,
-                    service_id=train.service_id,
-                    calling_points=train.calling_points,  # Use original as both
-                    route_segments=train.route_segments,
-                    full_calling_points=train.calling_points  # Same as calling_points in fallback
-                )
-                processed_trains.append(fallback_train)
-        
-        # Limit to max trains - ensure we always try to provide at least 15 trains when available
-        max_trains_limit = max(100, 15)  # Keep the higher limit but ensure minimum of 15
-        limited_trains = processed_trains[:max_trains_limit]
-        
-        # Calculate reduction statistics
-        if trains:
-            original_stations = sum(len(train.calling_points) for train in trains[:len(limited_trains)])
-            filtered_stations = sum(len(train.calling_points) for train in limited_trains)
-            reduction_percent = int((1 - filtered_stations / original_stations) * 100) if original_stations > 0 else 0
-            
-            logger.info(f"Processed {len(trains)} -> {len(limited_trains)} trains")
-            logger.info(f"Reduced stations: {original_stations} -> {filtered_stations} ({reduction_percent}% reduction)")
-        
-        return limited_trains
+        return process_train_data(trains=trains)
 
     def _get_time_window_hours(self) -> int:
         """Get time window hours from config with fallback."""
@@ -647,19 +409,15 @@ class TrainDataService:
     def _get_underground_indicator_for_segment(self, segment) -> str:
         """Get system-specific underground indicator for a segment."""
         try:
-            # Import the formatter to get system-specific information
-            from ...ui.formatters.underground_formatter import UndergroundFormatter
+            # Non-UI formatter to avoid layering violations.
+            from ..formatters.underground_formatter import UndergroundFormatter
+
             formatter = UndergroundFormatter()
-            
-            # Get system-specific information
-            if formatter.is_underground_segment(segment):
-                system_info = formatter.get_underground_system_info(segment)
-                system_name = system_info.get("short_name", "Underground")
-                time_range = system_info.get("time_range", "10-40min")
-                return f"<font color='#DC241F'>🚇 {system_name} ({time_range})</font>"
-            
+            indicator = formatter.format_indicator_html(segment)
+            if indicator:
+                return indicator
         except Exception as e:
             logger.warning(f"Error getting underground system info for segment: {e}")
-        
-        # Fallback to generic underground indicator
+
+        # Fallback to generic underground indicator.
         return "<font color='#DC241F'>🚇 Underground (10-40min)</font>"

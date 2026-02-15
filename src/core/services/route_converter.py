@@ -5,13 +5,13 @@ Handles converting PathNode objects to Route objects and managing intermediate s
 """
 
 import logging
-from typing import Dict, List, Optional, Any
-from pathlib import Path
-import json
+from typing import Any, Dict, List, Optional
 
 from ..interfaces.i_data_repository import IDataRepository
 from ..models.route import Route, RouteSegment
-from .pathfinding_algorithm import PathNode
+from .pathfinding_components.types import PathNode
+
+from .route_converter_helpers import generate_train_service_id, load_line_data_with_coordinates
 
 
 class RouteConverter:
@@ -86,7 +86,12 @@ class RouteConverter:
                             self.logger.debug(f"Set default 30min journey time for Underground segment: {segment_from} -> {segment_to}")
                     
                     # Generate train service ID for this segment
-                    train_service_id = self._generate_train_service_id(current_line, service_pattern, segment_from, segment_to)
+                    train_service_id = generate_train_service_id(
+                        current_line,
+                        service_pattern,
+                        segment_from,
+                        segment_to,
+                    )
                     
                     segment = RouteSegment(
                         from_station=segment_from,
@@ -147,7 +152,12 @@ class RouteConverter:
                     self.logger.debug(f"Set default 30min journey time for final Underground segment: {segment_from} -> {segment_to}")
             
             # Generate train service ID for final segment
-            train_service_id = self._generate_train_service_id(current_line, service_pattern, segment_from, segment_to)
+            train_service_id = generate_train_service_id(
+                current_line,
+                service_pattern,
+                segment_from,
+                segment_to,
+            )
             
             segment = RouteSegment(
                 from_station=segment_from,
@@ -212,7 +222,7 @@ class RouteConverter:
         self.logger.debug(f"Looking for intermediate stations between {from_station} -> {to_station} on {line_name}")
         try:
             # Get line data with coordinates
-            line_data = self._get_line_data_with_coordinates(line_name)
+            line_data = load_line_data_with_coordinates(line_name, logger=self.logger)
             if not line_data:
                 self.logger.debug(f"No line data found for {line_name}")
                 return []
@@ -302,7 +312,12 @@ class RouteConverter:
                           journey_time: int, distance: float) -> Route:
         """Create a direct route between two stations on the same line."""
         # Generate train service ID for direct route
-        train_service_id = self._generate_train_service_id(line_name, None, from_station, to_station)
+        train_service_id = generate_train_service_id(
+            line_name,
+            None,
+            from_station,
+            to_station,
+        )
         
         segment = RouteSegment(
             from_station=from_station,
@@ -413,7 +428,12 @@ class RouteConverter:
         for i in range(len(path) - 1):
             line_name = lines[i] if i < len(lines) else lines[-1]
             # Generate train service ID for circular route segment
-            train_service_id = self._generate_train_service_id(line_name, None, path[i], path[i + 1])
+            train_service_id = generate_train_service_id(
+                line_name,
+                None,
+                path[i],
+                path[i + 1],
+            )
             
             segment = RouteSegment(
                 from_station=path[i],
@@ -433,102 +453,3 @@ class RouteConverter:
         
         return route
     
-    def _get_line_data_with_coordinates(self, line_name: str) -> Optional[Dict[str, Any]]:
-        """Get line data with station coordinates from JSON files."""
-        try:
-            # Try to use data path resolver
-            try:
-                from ...utils.data_path_resolver import get_lines_directory
-                lines_dir = get_lines_directory()
-            except (ImportError, FileNotFoundError):
-                # Fallback to old method
-                lines_dir = Path("src/data/lines")
-            
-            # Convert line name to potential file name
-            # Remove common suffixes and normalize
-            normalized_name = line_name.lower()
-            normalized_name = normalized_name.replace(" line", "").replace(" main", "").replace(" railway", "")
-            normalized_name = normalized_name.replace(" ", "_").replace("-", "_")
-            
-            # Try different file name variations
-            potential_files = [
-                f"{normalized_name}.json",
-                f"{normalized_name}_line.json",
-                f"{normalized_name}_main_line.json",
-                f"{normalized_name}_railway.json"
-            ]
-            
-            # Also try exact match with underscores
-            exact_match = line_name.lower().replace(" ", "_").replace("-", "_")
-            potential_files.insert(0, f"{exact_match}.json")
-            
-            # Search through all JSON files if no direct match
-            if not any((lines_dir / f).exists() for f in potential_files):
-                for json_file in lines_dir.glob("*.json"):
-                    if json_file.name.endswith('.backup'):
-                        continue
-                    try:
-                        with open(json_file, 'r', encoding='utf-8') as f:
-                            data = json.load(f)
-                            metadata = data.get('metadata', {})
-                            if metadata.get('line_name') == line_name:
-                                return data
-                    except Exception:
-                        continue
-                
-                self.logger.debug(f"No file found for line: {line_name}")
-                return None
-            
-            # Try each potential file name
-            for file_name in potential_files:
-                line_file = lines_dir / file_name
-                if line_file.exists():
-                    with open(line_file, 'r', encoding='utf-8') as f:
-                        return json.load(f)
-            
-            return None
-                
-        except Exception as e:
-            self.logger.error(f"Failed to load line data for {line_name}: {e}")
-            return None
-
-    def _generate_train_service_id(self, line_name: str, service_pattern: Optional[str],
-                                  from_station: str, to_station: str) -> str:
-        """
-        Generate a train service ID that identifies the physical train service.
-        
-        For the user's specific journey (Farnborough North → Farnborough Main → Clapham Junction → London Waterloo):
-        - Farnborough North → Farnborough Main: Different train (GWR_READING_BASINGSTOKE)
-        - Farnborough Main → Clapham Junction → London Waterloo: Same train (SWR_MAIN_LINE)
-        """
-        if line_name == 'WALKING':
-            return f"WALKING_{from_station}_{to_station}"
-        
-        # Generate service ID based on line and service pattern
-        line_key = line_name.upper().replace(' ', '_').replace('-', '_')
-        
-        # For specific journey segments, assign consistent service IDs
-        if line_name == "Reading to Basingstoke Line":
-            return "GWR_READING_BASINGSTOKE_SERVICE"
-        elif line_name == "South Western Main Line":
-            return "SWR_MAIN_LINE_SERVICE"
-        elif line_name == "Portsmouth Direct Line":
-            # Portsmouth Direct Line trains continue as South Western Main Line trains
-            return "SWR_MAIN_LINE_SERVICE"
-        elif "South Western" in line_name:
-            return "SWR_MAIN_LINE_SERVICE"
-        elif "Portsmouth" in line_name and "Direct" in line_name:
-            # Portsmouth Direct trains are part of the SWR Main Line service
-            return "SWR_MAIN_LINE_SERVICE"
-        elif "Great Western" in line_name or "Reading" in line_name or "GWR" in line_name:
-            # All Great Western Railway services use the same service ID
-            return "GWR_MAIN_LINE_SERVICE"
-        elif "Cross Country" in line_name or "CrossCountry" in line_name:
-            # All Cross Country services use the same service ID
-            return "CROSS_COUNTRY_SERVICE"
-        elif line_name == "London Underground":
-            return "LONDON_UNDERGROUND_SERVICE"
-        else:
-            # Generic service ID for other lines
-            service_suffix = f"_{service_pattern}" if service_pattern else ""
-            return f"{line_key}_SERVICE{service_suffix}"

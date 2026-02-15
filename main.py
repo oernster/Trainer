@@ -9,7 +9,45 @@ and starts the main window with theme support and custom icon.
 import sys
 import tempfile
 import os
+import traceback
+import faulthandler
+import io
 from pathlib import Path
+
+
+def _crash_log_path() -> Path:
+    """Best-effort crash log path for cases where logging isn't configured yet."""
+    return Path(tempfile.gettempdir()) / "trainer_crash.log"
+
+
+def _debug_print(msg: str, *, force: bool = False) -> None:
+    """Best-effort debug print.
+
+    - When `TRAINER_STARTUP_DEBUG=1`, prints to stderr and appends to a temp crash log.
+    - When `force=True`, always emits regardless of env var (use for fatal errors).
+    """
+
+    if not force and os.environ.get("TRAINER_STARTUP_DEBUG") != "1":
+        return
+
+    try:
+        print(msg, file=sys.stderr, flush=True)
+    except Exception:
+        pass
+
+    try:
+        crash_path = _crash_log_path()
+        prior = crash_path.read_text(encoding="utf-8") if crash_path.exists() else ""
+        crash_path.write_text(prior + msg + "\n", encoding="utf-8")
+    except Exception:
+        pass
+
+
+# Enable faulthandler as early as possible. This helps catch hard crashes (e.g. Qt-level faults).
+try:
+    faulthandler.enable()
+except Exception:
+    pass
 
 # CRITICAL: Ultra-early singleton check before ANY imports or initialization
 def check_single_instance_ultra_early():
@@ -182,19 +220,37 @@ def setup_logging():
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / "train_times.log"
     
+    # NOTE: during diagnosis we want errors to actually be recorded.
+    # Allow overriding via TRAINER_LOG_LEVEL (default INFO).
+    level_name = os.environ.get("TRAINER_LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+
+    file_handler = logging.FileHandler(str(log_file), encoding="utf-8")
+
+    # Windows consoles can be cp1252. Ensure our console handler can emit unicode
+    # (e.g. arrows like → / ↔) without crashing logging.
+    console_stream = sys.stderr
+    try:
+        if hasattr(sys.stderr, "buffer"):
+            console_stream = io.TextIOWrapper(
+                sys.stderr.buffer,
+                encoding="utf-8",
+                errors="backslashreplace",
+                line_buffering=True,
+            )
+    except Exception:
+        console_stream = sys.stderr
+    console_handler = logging.StreamHandler(console_stream)
+
     logging.basicConfig(
-        level=logging.CRITICAL,
+        level=level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[logging.FileHandler(str(log_file)), logging.StreamHandler()],
+        handlers=[file_handler, console_handler],
     )
 
-    # Set specific log levels for different modules to suppress all warnings and errors
-    logging.getLogger("src.api").setLevel(logging.CRITICAL)
-    logging.getLogger("src.ui").setLevel(logging.CRITICAL)  # Set to CRITICAL to see only route validation messages
-    logging.getLogger("src.managers").setLevel(logging.CRITICAL)  # Set to CRITICAL to see only route validation messages
-    logging.getLogger("src.core").setLevel(logging.CRITICAL)
-    logging.getLogger("asyncio").setLevel(logging.CRITICAL)
-    logging.getLogger("aiohttp").setLevel(logging.CRITICAL)
+    # Keep noisy libraries quiet by default, but do not suppress errors.
+    logging.getLogger("asyncio").setLevel(max(level, logging.WARNING))
+    logging.getLogger("aiohttp").setLevel(max(level, logging.WARNING))
 
 def setup_application_icon(app: QApplication):
     """
@@ -314,12 +370,16 @@ class SingleInstanceApplication(QApplication):
 def main():
     """Main application entry point."""
     try:
+        _debug_print("[trainer] main(): starting")
+
         # Setup logging first
         setup_logging()
         logger = logging.getLogger(__name__)
+        _debug_print("[trainer] logging configured")
 
         # Create single instance QApplication with dual protection
         app = SingleInstanceApplication(sys.argv)
+        _debug_print("[trainer] QApplication created")
         app.setApplicationName(__app_name__)
         app.setApplicationDisplayName(__app_display_name__)
         app.setApplicationVersion(__version__)
@@ -340,6 +400,7 @@ def main():
         splash.show()
         splash.show_message("Initializing application...")
         app.processEvents()  # Process events to show splash screen
+        _debug_print("[trainer] splash shown")
 
         try:
             # Initialize configuration manager (will use AppData on Windows)
@@ -347,6 +408,7 @@ def main():
             app.processEvents()
 
             config_manager = ConfigManager()
+            _debug_print("[trainer] ConfigManager created")
 
             # Install default config to AppData if needed
             if config_manager.install_default_config_to_appdata():
@@ -354,12 +416,14 @@ def main():
 
             # Load configuration
             config = config_manager.load_config()
+            _debug_print("[trainer] config loaded")
 
             # Create main window with shared config manager (but don't show it yet)
             splash.show_message("Creating main window...")
             app.processEvents()
 
             window = MainWindow(config_manager)
+            _debug_print("[trainer] MainWindow created")
 
             # Initialize train manager (now works offline without API)
             splash.show_message("Initializing train manager...")
@@ -367,6 +431,7 @@ def main():
 
             # Create train manager with updated config
             train_manager = TrainManager(config)
+            _debug_print("[trainer] TrainManager created")
 
             # Set the route from configuration for offline timetable generation
             # Only set route if we have valid station configuration
@@ -391,10 +456,18 @@ def main():
             window.train_manager = train_manager
             
             # Set train manager on train list widget for interchange detection
-            if window.train_list_widget:
-                window.train_list_widget.set_train_manager(train_manager)
+            train_list_widget = None
+            try:
+                ui_layout_manager = getattr(window, "ui_layout_manager", None)
+                train_list_widget = getattr(ui_layout_manager, "train_list_widget", None)
+            except Exception:
+                train_list_widget = None
+
+            if train_list_widget:
+                train_list_widget.set_train_manager(train_manager)
 
             connect_signals(window, train_manager)
+            _debug_print("[trainer] signals connected")
 
             # The optimized widget initialization will handle weather and NASA widgets
             # Train data will be fetched after widget initialization completes
@@ -428,6 +501,7 @@ def main():
             # Use proper signaling instead of timers
             if window.initialization_manager:
                 window.initialization_manager.initialization_completed.connect(on_widgets_ready)
+                _debug_print("[trainer] connected to initialization_completed")
                 
             else:
                 # Fallback if initialization manager not available - still use signals
@@ -449,6 +523,7 @@ def main():
             # The window will be shown by the on_widgets_ready callback
 
             print("🚀 Trainer initialized successfully")
+            _debug_print("[trainer] entering Qt event loop")
 
             # Start event loop
             exit_code = app.exec()
@@ -459,6 +534,11 @@ def main():
             sys.exit(exit_code)
 
         except ConfigurationError as e:
+            _debug_print(f"[trainer] ConfigurationError: {e!r}", force=True)
+            try:
+                traceback.print_exc()
+            except Exception:
+                pass
             logger.error(f"Configuration error: {e}")
             # Show error message without creating another window
             msg_box = QMessageBox()
@@ -469,12 +549,18 @@ def main():
             sys.exit(1)
 
         except Exception as e:
+            _debug_print(f"[trainer] Fatal error: {e!r}", force=True)
+            try:
+                traceback.print_exc()
+            except Exception:
+                pass
             logger.error(f"Fatal error: {e}", exc_info=True)
             sys.exit(1)
 
     finally:
         # Always cleanup the ultra-early lock file
         cleanup_ultra_early_lock()
+        _debug_print("[trainer] main(): exiting (finally)")
 
 if __name__ == "__main__":
     main()

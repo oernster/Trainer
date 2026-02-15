@@ -7,26 +7,16 @@ manager classes for better separation of concerns and maintainability.
 """
 
 import logging
-from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 from PySide6.QtWidgets import (
     QMainWindow,
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QLabel,
-    QPushButton,
-    QStatusBar,
-    QMenuBar,
-    QMenu,
-    QMessageBox,
-    QApplication,
 )
-from PySide6.QtCore import QTimer, Signal, Qt, QSize
-from PySide6.QtGui import QAction, QIcon, QKeySequence, QCloseEvent
+from PySide6.QtCore import QTimer, Signal, Qt
+from PySide6.QtGui import QCloseEvent
 from ..models.train_data import TrainData
 from ..managers.train_manager import TrainManager
-from ..managers.config_manager import ConfigManager, ConfigurationError
+from ..managers.config_manager import ConfigManager
+from ..managers.config_models import ConfigurationError
 from ..managers.theme_manager import ThemeManager
 from ..managers.weather_manager import WeatherManager
 from ..managers.astronomy_manager import AstronomyManager
@@ -37,7 +27,37 @@ from .managers import (
     EventHandlerManager,
     SettingsDialogManager
 )
-from version import __version__, __app_display_name__, get_about_text
+from .main_window_components.astronomy_enable_flow import (
+    on_astronomy_data_ready_after_enable,
+    on_astronomy_enable_requested,
+    on_astronomy_error_after_enable,
+    show_astronomy_enabled_message,
+)
+from .main_window_components.details_dialogs import show_route_details, show_train_details
+from .main_window_components.dialog_route_update import on_dialog_route_updated
+from .main_window_components.info_dialogs import (
+    show_about_dialog,
+    show_error_message,
+    show_info_message,
+)
+from .main_window_components.initialization import initialize_main_window
+from .main_window_components.route_display import update_route_display
+from .main_window_components.settings_reload import (
+    check_settings_changes_need_refresh,
+    on_settings_saved,
+)
+from .main_window_components.theme import (
+    apply_theme,
+    apply_theme_to_all_widgets,
+    get_theme_colors,
+    on_theme_changed,
+    setup_theme_system,
+)
+from .main_window_components.train_display import update_train_display
+from .main_window_components.weather_astronomy_update import (
+    update_astronomy_system,
+    update_weather_system,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,84 +86,34 @@ class MainWindow(QMainWindow):
         """Initialize the main window with manager-based architecture."""
         super().__init__()
 
-        # Make window completely invisible during initialization
-        self.setVisible(False)
-        self.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
-        self.hide()  # Explicitly hide the window
-        
-        # Set a proper background color immediately to prevent white flash
-        self.setStyleSheet("QMainWindow { background-color: #1a1a1a; }")
-        
-        # Additional measures to prevent visibility
-        self.setWindowOpacity(0.0)  # Make completely transparent
-        self.move(-10000, -10000)   # Move off-screen
+        initialize_main_window(window=self, config_manager=config_manager)
 
-        # Initialize core managers
-        self.config_manager = config_manager or ConfigManager()
-        self.theme_manager = ThemeManager()
+    # ---------------------------------------------------------------------
+    # Compatibility shims
+    # ---------------------------------------------------------------------
+    # The app historically exposed widgets directly on `MainWindow`.
+    # After the UI refactor, widget ownership moved under `UILayoutManager`.
+    # Keep these properties so non-refactored code paths (e.g. older managers)
+    # can still access the widgets.
 
-        # Install default config to AppData on first run
-        self.config_manager.install_default_config_to_appdata()
+    @property
+    def weather_widget(self) -> Any:
+        ui_layout_manager = getattr(self, "ui_layout_manager", None)
+        return getattr(ui_layout_manager, "weather_widget", None)
 
-        # Load configuration
-        try:
-            self.config = self.config_manager.load_config()
-            # Set theme from config (defaults to dark)
-            self.theme_manager.set_theme(self.config.display.theme)
-        except ConfigurationError as e:
-            logger.error(f"Configuration error: {e}")
-            self.show_error_message("Configuration Error", str(e))
-            # Use default config
-            self.config = None
+    @property
+    def train_list_widget(self) -> Any:
+        ui_layout_manager = getattr(self, "ui_layout_manager", None)
+        return getattr(ui_layout_manager, "train_list_widget", None)
 
-        # Initialize UI manager classes
-        self.ui_layout_manager = UILayoutManager(self)
-        self.widget_lifecycle_manager = WidgetLifecycleManager(self)
-        self.event_handler_manager = EventHandlerManager(self)
-        self.settings_dialog_manager = SettingsDialogManager(self)
-
-        # Set up manager cross-references
-        self.widget_lifecycle_manager.set_ui_layout_manager(self.ui_layout_manager)
-        self.event_handler_manager.set_managers(self.ui_layout_manager, self.widget_lifecycle_manager)
-        self.settings_dialog_manager.set_managers(self.ui_layout_manager, self.widget_lifecycle_manager)
-
-        # External managers (will be set by main.py)
-        self.weather_manager: Optional[WeatherManager] = None
-        self.astronomy_manager: Optional[AstronomyManager] = None
-        self.initialization_manager: Optional[InitializationManager] = None
-        self.train_manager: Optional[TrainManager] = None
-
-        # Setup theme system first to ensure proper styling from the start
-        self.setup_theme_system()
-        self.apply_theme()
-
-        # Setup UI with theme already applied
-        self.ui_layout_manager.setup_ui()
-        self.ui_layout_manager.setup_application_icon()
-        
-        # Initialize the optimized initialization manager
-        self.initialization_manager = InitializationManager(self.config_manager, self)
-        
-        # Connect initialization signals
-        self.initialization_manager.initialization_completed.connect(self._on_initialization_completed)
-        # self.initialization_manager.astronomy_data_ready.connect(self._on_astronomy_data_ready)
-        
-        # Apply theme to all widgets after creation
-        self.apply_theme_to_all_widgets()
-        self.connect_signals()
-        
-        # Start optimized widget initialization
-        QTimer.singleShot(50, self._start_optimized_initialization)
-
-        logger.debug("Main window initialized with manager architecture")
-
-        # Keep invisible attributes until main.py is ready to show the window
-        logger.debug("Main window initialized but kept invisible until ready")
+    @property
+    def astronomy_widget(self) -> Any:
+        ui_layout_manager = getattr(self, "ui_layout_manager", None)
+        return getattr(ui_layout_manager, "astronomy_widget", None)
 
     def setup_theme_system(self):
         """Setup theme switching system."""
-        # Connect theme change signal
-        self.theme_manager.theme_changed.connect(self.on_theme_changed)
+        setup_theme_system(window=self)
 
     def setup_weather_system(self):
         """Setup weather integration system."""
@@ -168,93 +138,19 @@ class MainWindow(QMainWindow):
 
     def on_theme_changed(self, theme_name: str):
         """Handle theme change."""
-        self.apply_theme()
-        self.ui_layout_manager.update_theme_elements(theme_name)
-
-        # Update train list widget
-        widgets = self.ui_layout_manager.get_widgets()
-        train_list_widget = widgets.get('train_list_widget')
-        if train_list_widget:
-            train_list_widget.apply_theme(theme_name)
-
-        # Update weather widget
-        weather_widget = widgets.get('weather_widget')
-        if weather_widget:
-            theme_colors = self._get_theme_colors(theme_name)
-            weather_widget.apply_theme(theme_colors)
-
-        # Update astronomy widget
-        astronomy_widget = widgets.get('astronomy_widget')
-        if astronomy_widget:
-            theme_colors = self._get_theme_colors(theme_name)
-            astronomy_widget.apply_theme(theme_colors)
-
-        # Emit signal for other components
-        self.theme_changed.emit(theme_name)
-
-        logger.info(f"Theme changed to {theme_name}")
+        on_theme_changed(window=self, theme_name=theme_name)
 
     def _get_theme_colors(self, theme_name: str) -> dict:
         """Get theme colors dictionary for widgets."""
-        return {
-            "background_primary": "#1a1a1a" if theme_name == "dark" else "#ffffff",
-            "background_secondary": "#2d2d2d" if theme_name == "dark" else "#f5f5f5",
-            "background_hover": "#404040" if theme_name == "dark" else "#e0e0e0",
-            "text_primary": "#ffffff" if theme_name == "dark" else "#000000",
-            "primary_accent": "#1976d2",
-            "border_primary": "#404040" if theme_name == "dark" else "#cccccc",
-        }
+        return get_theme_colors(theme_name=theme_name)
 
     def apply_theme(self):
         """Apply current theme styling."""
-        main_style = self.theme_manager.get_main_window_stylesheet()
-        widget_style = self.theme_manager.get_widget_stylesheet()
-
-        # Add custom styling to remove borders under menu bar
-        if self.theme_manager.current_theme == "dark":
-            custom_style = """
-            QMainWindow {
-                border: none;
-            }
-            QMainWindow::separator {
-                border: none;
-                background: transparent;
-            }
-            """
-        else:
-            custom_style = """
-            QMainWindow {
-                border: none;
-            }
-            QMainWindow::separator {
-                border: none;
-                background: transparent;
-            }
-            """
-
-        self.setStyleSheet(main_style + widget_style + custom_style)
+        apply_theme(window=self)
 
     def apply_theme_to_all_widgets(self):
         """Apply theme to all widgets after creation."""
-        current_theme = self.theme_manager.current_theme
-        widgets = self.ui_layout_manager.get_widgets()
-
-        # Apply theme to train list widget
-        train_list_widget = widgets.get('train_list_widget')
-        if train_list_widget:
-            train_list_widget.apply_theme(current_theme)
-
-        # Apply theme to weather widget
-        weather_widget = widgets.get('weather_widget')
-        if weather_widget:
-            theme_colors = self._get_theme_colors(current_theme)
-            weather_widget.apply_theme(theme_colors)
-
-        # Apply theme to astronomy widget
-        astronomy_widget = widgets.get('astronomy_widget')
-        if astronomy_widget:
-            theme_colors = self._get_theme_colors(current_theme)
-            astronomy_widget.apply_theme(theme_colors)
+        apply_theme_to_all_widgets(window=self)
 
     def manual_refresh(self):
         """Trigger manual refresh of train data."""
@@ -278,29 +174,12 @@ class MainWindow(QMainWindow):
             to_station: Destination station name
             via_stations: Optional list of via stations
         """
-        # Header removed - route display no longer shown in UI, only logged
-        # Clean up station names by removing railway line context for logging
-        def clean_station_name(station_name: str) -> str:
-            """Remove railway line context from station name for cleaner display."""
-            if not station_name:
-                return station_name
-            # Remove text in parentheses (railway line context)
-            if '(' in station_name:
-                return station_name.split('(')[0].strip()
-            return station_name
-        
-        clean_from = clean_station_name(from_station)
-        clean_to = clean_station_name(to_station)
-        
-        if via_stations:
-            # Clean via station names
-            clean_via_stations = [clean_station_name(station) for station in via_stations]
-            via_text = " -> ".join(clean_via_stations)
-            route_text = f"Route: {clean_from} -> {via_text} -> {clean_to}"
-        else:
-            route_text = f"Route: {clean_from} -> {clean_to}"
-        
-        logger.debug(f"Route display updated: {route_text}")
+        update_route_display(
+            window=self,
+            from_station=from_station,
+            to_station=to_station,
+            via_stations=via_stations,
+        )
 
     def update_train_display(self, trains: List[TrainData]):
         """
@@ -309,21 +188,7 @@ class MainWindow(QMainWindow):
         Args:
             trains: List of train data to display
         """
-        widgets = self.ui_layout_manager.get_widgets()
-        train_list_widget = widgets.get('train_list_widget')
-        
-        if train_list_widget:
-            train_list_widget.update_trains(trains)
-            # Connect train selection signal if not already connected
-            if not hasattr(self, '_train_selection_connected'):
-                train_list_widget.train_selected.connect(self.show_train_details)
-                self._train_selection_connected = True
-            # Connect route selection signal if not already connected
-            if not hasattr(self, '_route_selection_connected'):
-                train_list_widget.route_selected.connect(self.show_route_details)
-                self._route_selection_connected = True
-
-        logger.debug(f"Updated display with {len(trains)} trains")
+        update_train_display(window=self, trains=trains)
 
     def update_last_update_time(self, timestamp: str):
         """
@@ -386,18 +251,7 @@ class MainWindow(QMainWindow):
 
     def show_about_dialog(self):
         """Show about dialog using centralized version system."""
-        # Get config path for display
-        config_path = self.config_manager.config_path
-
-        # Use centralized about text with config path
-        about_text = get_about_text()
-        about_text += f"<p><small>Config: {config_path}</small></p>"
-
-        msg_box = QMessageBox(self)
-        msg_box.setIcon(QMessageBox.Icon.Information)
-        msg_box.setWindowTitle("About")
-        msg_box.setText(about_text)
-        msg_box.exec()
+        show_about_dialog(window=self)
 
     def show_error_message(self, title: str, message: str):
         """
@@ -407,11 +261,7 @@ class MainWindow(QMainWindow):
             title: Dialog title
             message: Error message
         """
-        msg_box = QMessageBox(self)
-        msg_box.setIcon(QMessageBox.Icon.Critical)
-        msg_box.setWindowTitle(title)
-        msg_box.setText(message)
-        msg_box.exec()
+        show_error_message(window=self, title=title, message=message)
 
     def show_info_message(self, title: str, message: str):
         """
@@ -421,196 +271,37 @@ class MainWindow(QMainWindow):
             title: Dialog title
             message: Information message
         """
-        msg_box = QMessageBox(self)
-        msg_box.setIcon(QMessageBox.Icon.Information)
-        msg_box.setWindowTitle(title)
-        msg_box.setText(message)
-        msg_box.exec()
+        show_info_message(window=self, title=title, message=message)
 
     def on_settings_saved(self):
         """Handle settings saved event."""
-        try:
-            # Store old settings for comparison
-            old_time_window = None
-            old_train_lookahead = None
-            old_avoid_walking = None
-            old_max_walking_distance = None
-            old_prefer_direct = None
-            old_max_changes = None
-            
-            if self.config:
-                if hasattr(self.config, 'display'):
-                    old_time_window = self.config.display.time_window_hours
-                old_train_lookahead = getattr(self.config, 'train_lookahead_hours', None)
-                old_avoid_walking = getattr(self.config, 'avoid_walking', None)
-                old_max_walking_distance = getattr(self.config, 'max_walking_distance_km', None)
-                old_prefer_direct = getattr(self.config, 'prefer_direct', None)
-                old_max_changes = getattr(self.config, 'max_changes', None)
-            
-            # Reload configuration
-            self.config = self.config_manager.load_config()
-
-            # Update theme if changed
-            if self.config:
-                self.theme_manager.set_theme(self.config.display.theme)
-                
-                # Emit config updated signal to update train manager
-                self.config_updated.emit(self.config)
-                
-                # Check for changes that require train data refresh
-                needs_refresh = self._check_settings_changes_need_refresh(
-                    old_time_window, old_train_lookahead, old_avoid_walking,
-                    old_max_walking_distance, old_prefer_direct, old_max_changes
-                )
-                
-                # Trigger refresh if any setting that affects train data changed
-                if needs_refresh:
-                    self.refresh_requested.emit()
-                    logger.info("Refreshing train data for new preference settings")
-                
-                # Update train manager route if stations changed
-                self.route_changed.emit(self.config.stations.from_name, self.config.stations.to_name)
-                
-                # Update route display with via stations
-                via_stations = getattr(self.config.stations, 'via_stations', [])
-                self.update_route_display(
-                    self.config.stations.from_name,
-                    self.config.stations.to_name,
-                    via_stations
-                )
-                
-                # Trigger refresh to load trains with new route data
-                self.refresh_requested.emit()
-                logger.info("Route changed - refreshing train data for new route")
-
-                # Update weather system if configuration changed
-                if hasattr(self.config, "weather") and self.config.weather:
-                    self._update_weather_system()
-
-                # Update astronomy system if configuration changed
-                if hasattr(self.config, "astronomy") and self.config.astronomy:
-                    self._update_astronomy_system()
-
-            logger.info("Settings reloaded after save")
-
-        except ConfigurationError as e:
-            logger.error(f"Failed to reload settings: {e}")
-            self.show_error_message(
-                "Configuration Error", f"Failed to reload settings: {e}"
-            )
+        on_settings_saved(window=self)
 
     def _check_settings_changes_need_refresh(self, old_time_window, old_train_lookahead, 
                                            old_avoid_walking, old_max_walking_distance,
                                            old_prefer_direct, old_max_changes) -> bool:
         """Check if settings changes require train data refresh."""
-        needs_refresh = False
-        
-        # Check display time window change
-        if self.config and hasattr(self.config, 'display') and self.config.display:
-            new_time_window = self.config.display.time_window_hours
-            if old_time_window != new_time_window:
-                logger.info(f"Display time window changed from {old_time_window} to {new_time_window} hours")
-                needs_refresh = True
-        
-        # Check train lookahead time change
-        new_train_lookahead = getattr(self.config, 'train_lookahead_hours', None)
-        if old_train_lookahead != new_train_lookahead:
-            logger.info(f"Train look-ahead time changed from {old_train_lookahead} to {new_train_lookahead} hours")
-            needs_refresh = True
-        
-        # Check route preference changes that affect route calculation
-        new_avoid_walking = getattr(self.config, 'avoid_walking', None)
-        if old_avoid_walking != new_avoid_walking:
-            logger.info(f"Avoid walking preference changed from {old_avoid_walking} to {new_avoid_walking}")
-            needs_refresh = True
-        
-        new_max_walking_distance = getattr(self.config, 'max_walking_distance_km', None)
-        if old_max_walking_distance != new_max_walking_distance:
-            logger.info(f"Max walking distance changed from {old_max_walking_distance} to {new_max_walking_distance} km")
-            needs_refresh = True
-        
-        new_prefer_direct = getattr(self.config, 'prefer_direct', None)
-        if old_prefer_direct != new_prefer_direct:
-            logger.info(f"Prefer direct routes changed from {old_prefer_direct} to {new_prefer_direct}")
-            needs_refresh = True
-        
-        new_max_changes = getattr(self.config, 'max_changes', None)
-        if old_max_changes != new_max_changes:
-            logger.info(f"Max changes preference changed from {old_max_changes} to {new_max_changes}")
-            needs_refresh = True
-        
-        return needs_refresh
+        return check_settings_changes_need_refresh(
+            config=self.config,
+            old_time_window=old_time_window,
+            old_train_lookahead=old_train_lookahead,
+            old_avoid_walking=old_avoid_walking,
+            old_max_walking_distance=old_max_walking_distance,
+            old_prefer_direct=old_prefer_direct,
+            old_max_changes=old_max_changes,
+        )
 
     def _update_weather_system(self):
         """Update weather system after configuration change."""
-        if not self.config or not hasattr(self.config, 'weather') or not self.config.weather:
-            return
-            
-        if self.config.weather.enabled and not self.weather_manager:
-            # Weather was enabled, initialize system
-            self.setup_weather_system()
-        elif self.weather_manager:
-            # Update existing weather manager configuration
-            self.weather_manager.update_config(self.config.weather)
-
-            # Update weather widget configuration
-            widgets = self.ui_layout_manager.get_widgets()
-            weather_widget = widgets.get('weather_widget')
-            if weather_widget:
-                weather_widget.update_config(self.config.weather)
+        update_weather_system(window=self)
 
     def _update_astronomy_system(self):
         """Update astronomy system after configuration change."""
-        if not self.config or not hasattr(self.config, 'astronomy') or not self.config.astronomy:
-            return
-            
-        # Check if we need to reinitialize the astronomy system
-        needs_reinit = False
-        needs_data_fetch = False
-
-        if self.config.astronomy.enabled:
-            if not self.astronomy_manager:
-                # Astronomy was enabled, initialize manager
-                needs_reinit = True
-                needs_data_fetch = True
-            elif self.astronomy_manager:
-                # Update existing astronomy manager configuration
-                self.astronomy_manager.update_config(self.config.astronomy)
-
-        if needs_reinit:
-            # Reinitialize astronomy system completely
-            self.setup_astronomy_system()
-            logger.info("Astronomy system reinitialized with new API key")
-
-        # Emit signal to trigger immediate data fetch for new/updated API key
-        if needs_data_fetch and self.astronomy_manager:
-            logger.info("Emitting astronomy manager ready signal to trigger data fetch")
-            self.astronomy_manager_ready.emit()
-
-        # Always update astronomy widget configuration
-        widgets = self.ui_layout_manager.get_widgets()
-        astronomy_widget = widgets.get('astronomy_widget')
-        if astronomy_widget:
-            logger.info(f"Updating astronomy widget with config: enabled={self.config.astronomy.enabled}")
-            astronomy_widget.update_config(self.config.astronomy)
+        update_astronomy_system(window=self)
 
     def _on_dialog_route_updated(self, route_data: dict):
         """Handle route updates from the settings dialog during preference changes."""
-        try:
-            logger.info("Route updated from settings dialog - triggering immediate refresh")
-            
-            # Trigger immediate refresh of train data
-            self.refresh_requested.emit()
-            
-            # Also emit route_changed signal if we have the route data
-            if route_data and 'full_path' in route_data and len(route_data['full_path']) >= 2:
-                from_station = route_data['full_path'][0]
-                to_station = route_data['full_path'][-1]
-                self.route_changed.emit(from_station, to_station)
-                logger.info(f"Emitted route_changed signal: {from_station} → {to_station}")
-            
-        except Exception as e:
-            logger.error(f"Error handling dialog route update: {e}")
+        on_dialog_route_updated(window=self, route_data=route_data)
 
     def connect_signals(self):
         """Connect internal signals."""
@@ -635,53 +326,19 @@ class MainWindow(QMainWindow):
 
     def on_astronomy_enable_requested(self):
         """Handle astronomy enable request from settings dialog."""
-        if self.astronomy_manager:
-            # Connect to astronomy signals to wait for data
-            self.astronomy_manager.astronomy_updated.connect(self._on_astronomy_data_ready_after_enable)
-            self.astronomy_manager.astronomy_error.connect(self._on_astronomy_error_after_enable)
-            logger.debug("Connected to astronomy signals to wait for data after enable")
-        else:
-            # No manager available, show immediate message
-            self._show_astronomy_enabled_message()
+        on_astronomy_enable_requested(window=self)
 
     def _on_astronomy_data_ready_after_enable(self, forecast_data):
         """Handle astronomy data ready after enable request."""
-        # Disconnect the temporary signals
-        if self.astronomy_manager:
-            self.astronomy_manager.astronomy_updated.disconnect(self._on_astronomy_data_ready_after_enable)
-            self.astronomy_manager.astronomy_error.disconnect(self._on_astronomy_error_after_enable)
-        
-        # Now that data is ready, add astronomy widget to layout if not already there
-        self.widget_lifecycle_manager.ensure_astronomy_widget_in_layout()
-        
-        # Show success message now that data is ready
-        self._show_astronomy_enabled_message()
-        logger.info("Astronomy data loaded successfully after enable")
+        on_astronomy_data_ready_after_enable(window=self, forecast_data=forecast_data)
 
     def _on_astronomy_error_after_enable(self, error_message):
         """Handle astronomy error after enable request."""
-        # Disconnect the temporary signals
-        if self.astronomy_manager:
-            self.astronomy_manager.astronomy_updated.disconnect(self._on_astronomy_data_ready_after_enable)
-            self.astronomy_manager.astronomy_error.disconnect(self._on_astronomy_error_after_enable)
-        
-        # Show error message
-        msg_box = QMessageBox(self)
-        msg_box.setWindowTitle("Astronomy Data Error")
-        msg_box.setText(f"Astronomy integration has been enabled, but there was an error loading data:\n\n{error_message}\n\n"
-                       "You can try refreshing the data later.")
-        msg_box.setIcon(QMessageBox.Icon.Warning)
-        msg_box.exec()
-        logger.warning(f"Astronomy error after enable: {error_message}")
+        on_astronomy_error_after_enable(window=self, error_message=error_message)
 
     def _show_astronomy_enabled_message(self):
         """Show the astronomy enabled success message."""
-        msg_box = QMessageBox(self)
-        msg_box.setWindowTitle("Astronomy Enabled")
-        msg_box.setText("Astronomy integration has been enabled! "
-                       "You'll now see space events and astronomical data in your app.")
-        msg_box.setIcon(QMessageBox.Icon.Information)
-        msg_box.exec()
+        show_astronomy_enabled_message(window=self)
 
     def showEvent(self, event):
         """Handle window show event - trigger astronomy data fetch when UI is displayed."""
@@ -711,18 +368,7 @@ class MainWindow(QMainWindow):
         Args:
             train_data: Train data to display in detail
         """
-        try:
-            from .train_detail_dialog import TrainDetailDialog
-            dialog = TrainDetailDialog(
-                train_data,
-                self.theme_manager.current_theme,
-                self
-            )
-            dialog.exec()
-            logger.info(f"Showed train details for {train_data.destination}")
-        except Exception as e:
-            logger.error(f"Failed to show train details: {e}")
-            self.show_error_message("Train Details Error", f"Failed to show train details: {e}")
+        show_train_details(window=self, train_data=train_data)
 
     def show_route_details(self, train_data: TrainData):
         """
@@ -731,19 +377,7 @@ class MainWindow(QMainWindow):
         Args:
             train_data: Train data to display route for
         """
-        try:
-            from .widgets.route_display_dialog import RouteDisplayDialog
-            dialog = RouteDisplayDialog(
-                train_data,
-                self.theme_manager.current_theme,
-                self,
-                self.train_manager
-            )
-            dialog.exec()
-            logger.info(f"Showed route details for {train_data.destination}")
-        except Exception as e:
-            logger.error(f"Failed to show route details: {e}")
-            self.show_error_message("Route Details Error", f"Failed to show route details: {e}")
+        show_route_details(window=self, train_data=train_data)
 
     def _start_optimized_initialization(self) -> None:
         """Start the optimized widget initialization process."""

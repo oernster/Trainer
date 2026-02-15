@@ -24,7 +24,7 @@ class IStationService(ABC):
         Returns:
             Resolved station name or None if not found
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def validate_station_exists(self, name: str) -> bool:
@@ -37,7 +37,7 @@ class IStationService(ABC):
         Returns:
             True if station exists, False otherwise
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_station_suggestions(self, partial: str, limit: int = 10) -> List[str]:
@@ -51,7 +51,7 @@ class IStationService(ABC):
         Returns:
             List of suggested station names
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def find_common_lines(self, from_name: str, to_name: str) -> List[str]:
@@ -65,7 +65,7 @@ class IStationService(ABC):
         Returns:
             List of common railway line names
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_station_by_name(self, name: str) -> Optional[Station]:
@@ -78,7 +78,7 @@ class IStationService(ABC):
         Returns:
             Station object or None if not found
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_all_stations(self) -> List[Station]:
@@ -88,7 +88,7 @@ class IStationService(ABC):
         Returns:
             List of all station objects
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_all_station_names(self) -> List[str]:
@@ -98,7 +98,7 @@ class IStationService(ABC):
         Returns:
             List of all station names
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_all_station_names_with_underground(self) -> List[str]:
@@ -108,7 +108,7 @@ class IStationService(ABC):
         Returns:
             List of all station names including Underground-only stations
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_stations_on_line(self, line_name: str) -> List[Station]:
@@ -121,7 +121,7 @@ class IStationService(ABC):
         Returns:
             List of stations on the line
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_railway_lines_for_station(self, station_name: str) -> List[str]:
@@ -134,7 +134,7 @@ class IStationService(ABC):
         Returns:
             List of railway line names
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def search_stations(self, query: str, limit: int = 20) -> List[str]:
@@ -148,7 +148,7 @@ class IStationService(ABC):
         Returns:
             List of matching station names
         """
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def get_stations_with_context(self) -> List[Dict[str, Any]]:
@@ -158,4 +158,4 @@ class IStationService(ABC):
         Returns:
             List of station dictionaries with context
         """
-        pass
+        raise NotImplementedError

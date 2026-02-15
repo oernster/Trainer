@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QFrame, QVBoxLayout, QGridLayout, QWidget, QLabel,
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
 
-from ...models.astronomy_data import AstronomyData, AstronomyEvent
+from ...services.astronomy_ui_facade import AstronomyEventDTO
 from .astronomy_event_icon import AstronomyEventIcon
 
 logger = logging.getLogger(__name__)
@@ -25,13 +25,13 @@ class DailyAstronomyPanel(QFrame):
     displaying daily astronomy information.
     """
 
-    event_icon_clicked = Signal(AstronomyEvent)
+    event_icon_clicked = Signal(object)
 
     def __init__(self, parent=None, scale_factor=1.0):
         """Initialize daily astronomy panel."""
         super().__init__(parent)
         self._scale_factor = scale_factor
-        self._astronomy_data: Optional[AstronomyData] = None
+        self._astronomy_data: Optional[object] = None
         self._event_icons: List[AstronomyEventIcon] = []
         self._setup_ui()
 
@@ -100,19 +100,25 @@ class DailyAstronomyPanel(QFrame):
         self.setFixedHeight(scaled_height)
         self.setMinimumWidth(scaled_min_width)
 
-    def update_data(self, astronomy_data: AstronomyData, icon_overrides: list[str] | None = None) -> None:
+    def update_data(self, astronomy_data: object, icon_overrides: list[str] | None = None) -> None:
         """Update panel with astronomy data."""
         self._astronomy_data = astronomy_data
 
         # Update date label
-        date_str = astronomy_data.date.strftime("%a\n%d")
-        self._date_label.setText(date_str)
+        date_value = getattr(astronomy_data, "date", None)
+        if date_value is not None and hasattr(date_value, "strftime"):
+            self._date_label.setText(date_value.strftime("%a\n%d"))
+        else:
+            self._date_label.setText("")
 
         # Clear existing icons
         self._clear_icons()
 
         # Add event icons (up to 4 for 2x2 grid)
-        events_to_show = astronomy_data.get_sorted_events(by_priority=True)[:4]
+        if hasattr(astronomy_data, "get_sorted_events"):
+            events_to_show = astronomy_data.get_sorted_events(by_priority=True)[:4]
+        else:
+            events_to_show = []
 
         for i, event in enumerate(events_to_show):
             override = icon_overrides[i] if icon_overrides and i < len(icon_overrides) else None
@@ -130,7 +136,7 @@ class DailyAstronomyPanel(QFrame):
             self._icons_layout.addWidget(icon, row, col)
 
         # Update moon phase
-        self._moon_label.setText(astronomy_data.moon_phase_icon)
+        self._moon_label.setText(getattr(astronomy_data, "moon_phase_icon", ""))
 
         # Update styling based on event priority
         self._update_styling()

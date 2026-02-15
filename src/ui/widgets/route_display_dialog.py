@@ -6,7 +6,6 @@ with comprehensive station information and interchange detection.
 """
 
 import logging
-import json
 import sys
 from pathlib import Path
 from typing import List, Optional, Dict
@@ -20,6 +19,11 @@ from ...models.train_data import TrainData, CallingPoint
 from ...core.services.interchange_detection_service import InterchangeDetectionService
 from ...ui.formatters.underground_formatter import UndergroundFormatter
 from .train_widgets_base import BaseTrainWidget
+from .route_display_dialog_helpers import (
+    build_route_dialog_stylesheet,
+    build_station_to_files_mapping,
+    station_has_underground_connection,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -381,60 +385,7 @@ class RouteDisplayDialog(QDialog):
 
     def _apply_theme(self) -> None:
         """Apply theme styling to the dialog."""
-        if self.current_theme == "dark":
-            self.setStyleSheet("""
-                QDialog {
-                    background-color: #1a1a1a;
-                    color: #ffffff;
-                }
-                QLabel {
-                    color: #ffffff;
-                    background-color: transparent;
-                }
-                QPushButton {
-                    background-color: #1976d2;
-                    color: #000000;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 8px 16px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #1565c0;
-                }
-                QScrollArea {
-                    border: 1px solid #404040;
-                    border-radius: 4px;
-                    background-color: #1a1a1a;
-                }
-            """)
-        else:
-            self.setStyleSheet("""
-                QDialog {
-                    background-color: #ffffff;
-                    color: #212121;
-                }
-                QLabel {
-                    color: #212121;
-                    background-color: transparent;
-                }
-                QPushButton {
-                    background-color: #1976d2;
-                    color: #ffffff;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 8px 16px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #1565c0;
-                }
-                QScrollArea {
-                    border: 1px solid #e0e0e0;
-                    border-radius: 4px;
-                    background-color: #ffffff;
-                }
-            """)
+        self.setStyleSheet(build_route_dialog_stylesheet(self.current_theme))
     
     def _is_major_interchange(self, station_name: str) -> bool:
         """Check if a station is where the passenger actually changes trains/lines during this journey."""
@@ -470,58 +421,17 @@ class RouteDisplayDialog(QDialog):
     
     def _build_station_to_files_mapping(self) -> Dict:
         """Build the mapping of stations to JSON files by loading all line data."""
-        station_to_files = {}
-        
         lines_dir = Path(__file__).parent.parent.parent / "data" / "lines"
-        
-        if not lines_dir.exists():
-            logger.error(f"Lines directory not found: {lines_dir}")
-            return {}
-        
-        try:
-            for json_file in lines_dir.glob("*.json"):
-                with open(json_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    
-                    # Get stations from this JSON file
-                    stations = data.get('stations', [])
-                    file_name = json_file.stem  # Get filename without extension
-                    
-                    for station in stations:
-                        station_name = station.get('name', '')
-                        if station_name:
-                            if station_name not in station_to_files:
-                                station_to_files[station_name] = []
-                            station_to_files[station_name].append(file_name)
-            
-            logger.debug(f"Built station-to-files mapping with {len(station_to_files)} stations")
-            return station_to_files
-            
-        except Exception as e:
-            logger.error(f"Failed to build station-to-files mapping: {e}")
-            return {}
+        return build_station_to_files_mapping(lines_dir)
     
     def _format_station_name(self, station_name: str) -> str:
         """Format station name with Underground indicator."""
-        # Check if this station is part of an Underground segment
-        has_underground_connection = False
-        
-        if hasattr(self.train_data, 'route_segments') and self.train_data.route_segments:
-            for segment in self.train_data.route_segments:
-                if self.underground_formatter.is_underground_segment(segment):
-                    segment_from = getattr(segment, 'from_station', '')
-                    segment_to = getattr(segment, 'to_station', '')
-                    
-                    if station_name == segment_from or station_name == segment_to:
-                        has_underground_connection = True
-                        break
-        
-        # Build the station text with appropriate indicators
-        formatted_name = station_name
-        
-        # Add underground indicator if applicable
-        if has_underground_connection:
-            formatted_name += " 🚇"
-            
-        return formatted_name
+        if station_has_underground_connection(
+            train_data=self.train_data,
+            underground_formatter=self.underground_formatter,
+            station_name=station_name,
+        ):
+            return station_name + " 🚇"
+
+        return station_name
         

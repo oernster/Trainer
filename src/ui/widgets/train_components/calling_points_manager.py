@@ -18,6 +18,11 @@ from .base_component import BaseTrainComponent
 from .station_filter_service import StationFilterService
 from ....models.train_data import TrainData, CallingPoint
 from ....ui.formatters.underground_formatter import UndergroundFormatter
+from .calling_points_styling import (
+    stylesheet_for_direct_label,
+    stylesheet_for_station_label,
+)
+from .calling_points_arrows import build_arrow_label
 
 logger = logging.getLogger(__name__)
 
@@ -203,203 +208,21 @@ class CallingPointsManager(BaseTrainComponent):
             calling_points: List of all calling points
             index: Index of current calling point
         """
-        # Get raw station names
         raw_curr = calling_points[index].station_name if calling_points[index].station_name else ""
-        raw_prev = calling_points[index-1].station_name if calling_points[index-1].station_name else ""
-        
-        # Check if these are HTML-formatted station names
-        is_curr_html = "<font" in raw_curr and "</font>" in raw_curr
-        is_prev_html = "<font" in raw_prev and "</font>" in raw_prev
-        
-        # Process station names based on whether they're HTML-formatted
-        if is_curr_html:
-            station_name = raw_curr  # Keep HTML formatting
-        else:
-            station_name = raw_curr.strip()
-            
-        if is_prev_html:
-            prev_station = raw_prev  # Keep HTML formatting
-        else:
-            prev_station = raw_prev.strip()
-        
-        # Check for walking connections in segments
-        is_walking_connection = False
-        walking_info = ""
-        
-        if self.train_data and hasattr(self.train_data, 'route_segments') and self.train_data.route_segments:
-            for segment in self.train_data.route_segments:
-                # Get raw segment station names
-                raw_from = getattr(segment, 'from_station', '')
-                raw_to = getattr(segment, 'to_station', '')
-                
-                # Check if these are HTML-formatted station names
-                is_from_html = "<font" in raw_from and "</font>" in raw_from
-                is_to_html = "<font" in raw_to and "</font>" in raw_to
-                
-                # Process segment station names based on whether they're HTML-formatted
-                if is_from_html:
-                    segment_from = raw_from  # Keep HTML formatting
-                else:
-                    segment_from = raw_from.strip()
-                    
-                if is_to_html:
-                    segment_to = raw_to  # Keep HTML formatting
-                else:
-                    segment_to = raw_to.strip()
-                
-                # Compare station names, considering HTML formatting
-                from_matches_prev = segment_from == prev_station
-                from_matches_curr = segment_from == station_name
-                to_matches_prev = segment_to == prev_station
-                to_matches_curr = segment_to == station_name
-                
-                connects_stations = (from_matches_prev and to_matches_curr) or (from_matches_curr and to_matches_prev)
-                
-                if connects_stations:
-                    line_name = getattr(segment, 'line_name', '')
-                    service_pattern = getattr(segment, 'service_pattern', '') if hasattr(segment, 'service_pattern') else ''
-                    
-                    # Check for Underground black box segments
-                    is_underground_segment = self.underground_formatter.is_underground_segment(segment)
-                    
-                    # Detect walking segments
-                    is_walking_segment = (line_name == 'WALKING' or service_pattern == 'WALKING')
-                    
-                    # Show walking if this is explicitly a walking segment
-                    if is_walking_segment:
-                        is_walking_connection = True
-                        walking_distance = getattr(segment, 'distance_km', None)
-                        walking_time = getattr(segment, 'journey_time_minutes', None)
-                        
-                        if walking_distance and walking_time:
-                            walking_info = f"Walk {walking_distance:.1f}km ({walking_time}min)"
-                        elif walking_distance:
-                            walking_info = f"Walk {walking_distance:.1f}km"
-                        else:
-                            walking_info = "Walking connection"
-                        break
-        
-        # Create appropriate arrow with crash protection
-        if is_walking_connection and walking_info:
-            # Use plain text for walking connections to avoid Qt HTML rendering crashes
-            # Use consistent spacing on either side of the arrow
-            arrow_text = f"  → {walking_info} →  "
-            
-            # Create the arrow label with fixed-width spaces to ensure consistency
-            arrow_label = QLabel(arrow_text)
-            
-            # Ensure the label doesn't get truncated
-            arrow_label.setWordWrap(False)
-            arrow_label.setTextFormat(Qt.TextFormat.PlainText)  # Use plain text to avoid HTML interpretation
-            
-            # Apply red color via stylesheet instead of HTML with explicit padding
-            arrow_label.setStyleSheet(f"""
-                QLabel {{
-                    background-color: transparent;
-                    color: #f44336;
-                    border: none;
-                    margin: 0px;
-                    padding-left: 4px;
-                    padding-right: 4px;
-                }}
-            """)
-        else:
-            # Check if this is an Underground segment
-            is_underground_connection = False
-            underground_info = ""
-            
-            if self.train_data and hasattr(self.train_data, 'route_segments') and self.train_data.route_segments:
-                for segment in self.train_data.route_segments:
-                    # Get raw segment station names
-                    raw_from = getattr(segment, 'from_station', '')
-                    raw_to = getattr(segment, 'to_station', '')
-                    
-                    # Check if these are HTML-formatted station names
-                    is_from_html = "<font" in raw_from and "</font>" in raw_from
-                    is_to_html = "<font" in raw_to and "</font>" in raw_to
-                    
-                    # Process segment station names based on whether they're HTML-formatted
-                    if is_from_html:
-                        segment_from = raw_from  # Keep HTML formatting
-                    else:
-                        segment_from = raw_from.strip()
-                        
-                    if is_to_html:
-                        segment_to = raw_to  # Keep HTML formatting
-                    else:
-                        segment_to = raw_to.strip()
-                    
-                    # Compare station names, considering HTML formatting
-                    from_matches_prev = segment_from == prev_station
-                    from_matches_curr = segment_from == station_name
-                    to_matches_prev = segment_to == prev_station
-                    to_matches_curr = segment_to == station_name
-                    
-                    connects_stations = (from_matches_prev and to_matches_curr) or (from_matches_curr and to_matches_prev)
-                    
-                    if connects_stations and self.underground_formatter.is_underground_segment(segment):
-                        is_underground_connection = True
-                        # Get system-specific information
-                        system_info = self.underground_formatter.get_underground_system_info(segment)
-                        system_name = system_info.get("short_name", "Underground")
-                        time_range = system_info.get("time_range", "10-40min")
-                        emoji = system_info.get("emoji", "🚇")
-                        underground_info = f"{emoji} {system_name} ({time_range})"
-                        break
-            
-            if is_underground_connection:
-                # Always use red for underground connections, but show system-specific info with emoji
-                # Use consistent spacing on either side of the arrow
-                arrow_text = f"  → {underground_info} →  "
-                
-                # Create the arrow label with fixed-width spaces to ensure consistency
-                arrow_label = QLabel(arrow_text)
-                
-                # Ensure the label doesn't get truncated
-                arrow_label.setWordWrap(False)
-                arrow_label.setTextFormat(Qt.TextFormat.PlainText)  # Use plain text to avoid HTML interpretation
-                
-                # Apply styling with explicit padding
-                arrow_label.setStyleSheet(f"""
-                    QLabel {{
-                        background-color: transparent;
-                        color: #DC241F;
-                        border: none;
-                        margin: 0px;
-                        padding-left: 4px;
-                        padding-right: 4px;
-                        font-weight: bold;
-                    }}
-                """)
-            else:
-                # Use consistent spacing on either side of the arrow
-                arrow_text = "  →  "  # Added extra spaces on both sides
-                
-                # Create the arrow label with fixed-width spaces to ensure consistency
-                arrow_label = QLabel(arrow_text)
-                
-                # Ensure the label doesn't get truncated
-                arrow_label.setWordWrap(False)
-                arrow_label.setTextFormat(Qt.TextFormat.PlainText)  # Use plain text to avoid HTML interpretation
-                
-                # Apply consistent styling with explicit padding
-                colors = self.get_theme_colors(self._current_theme)
-                arrow_label.setStyleSheet(f"""
-                    QLabel {{
-                        background-color: transparent;
-                        color: {colors['primary_accent']};
-                        border: none;
-                        margin: 0px;
-                        padding-left: 4px;
-                        padding-right: 4px;
-                    }}
-                """)
-                
-                # Set a fixed width for the arrow to ensure consistent spacing
-                arrow_label.setFixedWidth(50)
-        
+        raw_prev = calling_points[index - 1].station_name if calling_points[index - 1].station_name else ""
+
+        colors = self.get_theme_colors(self._current_theme)
+        arrow_label = build_arrow_label(
+            train_data=self.train_data,
+            underground_formatter=self.underground_formatter,
+            theme=self._current_theme,
+            theme_colors=colors,
+            prev_station_raw=raw_prev,
+            curr_station_raw=raw_curr,
+        )
+
         arrow_font = QFont()
-        arrow_font.setPointSize(15)  # Reduced font size
+        arrow_font.setPointSize(15)
         arrow_label.setFont(arrow_font)
         layout.addWidget(arrow_label)
     
@@ -483,63 +306,20 @@ class CallingPointsManager(BaseTrainComponent):
         # Check for walking connections
         is_walking = ("<font color='#f44336'" in station_name)
         
-        if not is_walking:
-            if self.station_filter_service.is_actual_user_journey_interchange(station_name):
-                # Use orange/yellow ONLY for stations where user actually changes trains
-                interchange_color = colors["warning"]
-                label.setStyleSheet(f"""
-                    QLabel {{
-                        background-color: transparent !important;
-                        color: {interchange_color} !important;
-                        border: none !important;
-                        margin: 0px !important;
-                        padding: 0px !important;
-                    }}
-                """)
-            elif calling_point.is_origin or calling_point.is_destination:
-                # FORCE light blue for From and To stations in light mode for visibility
-                if self._current_theme == "light":
-                    label.setStyleSheet(f"""
-                        QLabel {{
-                            background-color: transparent !important;
-                            color: #1976d2 !important;
-                            border: none !important;
-                            margin: 0px !important;
-                            padding: 0px !important;
-                        }}
-                    """)
-                else:
-                    # Dark mode: use normal text color
-                    label.setStyleSheet(f"""
-                        QLabel {{
-                            background-color: transparent !important;
-                            color: {colors['text_primary']} !important;
-                            border: none !important;
-                            margin: 0px !important;
-                            padding: 0px !important;
-                        }}
-                    """)
-            else:
-                # Regular light blue text for normal intermediate stations
-                label.setStyleSheet(f"""
-                    QLabel {{
-                        background-color: transparent !important;
-                        color: {colors['primary_accent']} !important;
-                        border: none !important;
-                        margin: 0px !important;
-                        padding: 0px !important;
-                    }}
-                """)
-        else:
-            # For walking connections, preserve HTML formatting
-            label.setStyleSheet("""
-                QLabel {
-                    background-color: transparent !important;
-                    border: none !important;
-                    margin: 0px !important;
-                    padding: 0px !important;
-                }
-            """)
+        is_user_interchange = self.station_filter_service.is_actual_user_journey_interchange(
+            station_name
+        )
+        label.setStyleSheet(
+            stylesheet_for_station_label(
+                theme=self._current_theme,
+                colors=colors,
+                is_walking=is_walking,
+                is_user_interchange=is_user_interchange,
+                is_origin_or_destination=(
+                    calling_point.is_origin or calling_point.is_destination
+                ),
+            )
+        )
     
     def _create_direct_service_display(self) -> None:
         """Create display for direct service."""
@@ -556,25 +336,5 @@ class CallingPointsManager(BaseTrainComponent):
     def _apply_theme_styles(self) -> None:
         """Apply theme-specific styling."""
         colors = self.get_theme_colors(self._current_theme)
-        
-        # Apply theme-specific styles
-        if self._current_theme == "light":
-            self.setStyleSheet(f"""
-                QLabel {{
-                    color: #212121;
-                    background-color: transparent;
-                    border: none;
-                    margin: 0px;
-                    padding: 0px;
-                }}
-            """)
-        else:
-            self.setStyleSheet(f"""
-                QLabel {{
-                    color: {colors['text_primary']};
-                    background-color: transparent;
-                    border: none;
-                    margin: 0px;
-                    padding: 0px;
-                }}
-            """)
+
+        self.setStyleSheet(stylesheet_for_direct_label(self._current_theme, colors))

@@ -1885,6 +1885,14 @@ class MainWindow(QMainWindow):
         try:
             logger.debug("Application closing - starting main window cleanup")
 
+            # Stop background timers managed by the event handler manager
+            try:
+                if hasattr(self, "event_handler_manager") and self.event_handler_manager:
+                    self.event_handler_manager.shutdown()
+                    logger.debug("Event handler manager shutdown complete")
+            except Exception as e:
+                logger.warning(f"Error shutting down event handler manager: {e}")
+
             # Save UI state before closing
             try:
                 self._save_ui_state()
@@ -2098,6 +2106,12 @@ class MainWindow(QMainWindow):
             # Log current states for debugging
             weather_visible = self.weather_widget.isVisible()
             astronomy_visible = self.astronomy_widget.isVisible()
+
+            # Start hourly top-of-hour refresh once the UI is fully initialized.
+            try:
+                self.event_handler_manager.setup_refresh_timer()
+            except Exception as e:
+                logger.warning(f"Failed to start hourly refresh timer: {e}")
 
         else:
             # Retry sync after a short delay if widgets aren't ready

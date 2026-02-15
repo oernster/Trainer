@@ -11,9 +11,11 @@ Now API-free - generates static astronomy events without requiring NASA API.
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time, timezone, tzinfo
 from typing import Optional, Dict, Any, List
 from PySide6.QtCore import QObject, Signal, QTimer
+
+from zoneinfo import ZoneInfo
 
 from ..models.astronomy_data import (
     AstronomyForecastData,
@@ -162,8 +164,8 @@ class AstronomyManager(QObject):
             events = self._generate_static_astronomy_events()
 
             # Create daily astronomy data from events
-            daily_astronomy = []
-            events_by_date = {}
+            daily_astronomy: list[AstronomyData] = []
+            events_by_date: dict = {}
             
             # Group events by date
             for event in events:
@@ -172,18 +174,23 @@ class AstronomyManager(QObject):
                     events_by_date[event_date] = []
                 events_by_date[event_date].append(event)
             
-            # Create AstronomyData for each date with proper moon phases
+            # Create AstronomyData for each date with proper moon phases.
+            # The UI wants the phase "tonight" for each day (22:00 local time).
+            tz = self._get_config_timezone()
+            anchor_local_time = time(22, 0)
+
             for event_date, date_events in sorted(events_by_date.items()):
-                # Calculate moon phase for this date using hybrid service
-                moon_phase = self._calculate_moon_phase_for_date(event_date)
-                moon_illumination = self._calculate_moon_illumination(moon_phase, event_date)
+                anchor_dt = datetime.combine(event_date, anchor_local_time).replace(tzinfo=tz)
+
+                moon_phase = self._calculate_moon_phase_for_moment(anchor_dt)
+                moon_illumination = self._calculate_moon_illumination_for_moment(anchor_dt)
                 
                 daily_data = AstronomyData(
                     date=event_date,
                     events=date_events,
                     primary_event=date_events[0] if date_events else None,
                     moon_phase=moon_phase,
-                    moon_illumination=moon_illumination
+                    moon_illumination=moon_illumination,
                 )
                 daily_astronomy.append(daily_data)
 
@@ -382,7 +389,9 @@ class AstronomyManager(QObject):
             return None
             
         try:
-            moon_data = self._moon_phase_service.get_moon_phase_sync(datetime.now().date())
+            tz = self._get_config_timezone()
+            now_local = datetime.now(tz)
+            moon_data = self._moon_phase_service.get_moon_phase_sync(now_local)
             return {
                 'phase_name': moon_data.phase.value.replace("_", " ").title(),
                 'illumination_percent': moon_data.illumination * 100,  # Convert to percentage
@@ -408,54 +417,52 @@ class AstronomyManager(QObject):
 
         logger.debug("Astronomy manager shutdown complete")
 
-    def _calculate_moon_phase_for_date(self, target_date) -> MoonPhase:
-        """Calculate moon phase for a given date using the hybrid moon phase service."""
+    def _get_config_timezone(self) -> tzinfo:
+        """Get timezone for astronomy calculations.
+
+        Falls back to UTC if the configured timezone is missing/invalid.
+        """
+        tz_name = getattr(self._config, "timezone", None) or "UTC"
         try:
-            # Convert date to datetime for the service
-            if hasattr(target_date, 'date'):
-                # target_date is already datetime, get the date part
-                target_date_obj = target_date.date()
-            else:
-                # target_date is already a date object
-                target_date_obj = target_date
-            
-            # Get moon phase data from hybrid service (synchronous version)
-            moon_data = self._moon_phase_service.get_moon_phase_sync(target_date_obj)
-            
+            return ZoneInfo(tz_name)
+        except Exception:
+            # Windows Python environments may not ship with IANA tzdata.
+            # Fall back to python-dateutil if available.
+            try:
+                from dateutil import tz
+
+                tzinfo_obj = tz.gettz(tz_name)
+                if tzinfo_obj is not None:
+                    return tzinfo_obj
+            except Exception:
+                pass
+
+            # Fall back to the system local timezone if possible, otherwise UTC.
+            logger.warning(
+                "Invalid/unavailable timezone '%s'; falling back to system local timezone",
+                tz_name,
+            )
+            return datetime.now().astimezone().tzinfo or timezone.utc
+
+    def _calculate_moon_phase_for_moment(self, target_dt: datetime) -> MoonPhase:
+        """Calculate moon phase for a specific moment (timezone-aware datetime)."""
+        try:
+            moon_data = self._moon_phase_service.get_moon_phase_sync(target_dt)
+
             # Return the MoonPhase enum directly (no mapping needed)
             return moon_data.phase
-            
+
         except Exception as e:
             logger.warning(f"Failed to get moon phase from hybrid service: {e}")
             # Fallback to a simple calculation if service fails
             return MoonPhase.NEW_MOON
 
-    def _calculate_moon_illumination(self, moon_phase: MoonPhase, target_date=None) -> float:
-        """Calculate moon illumination percentage using the hybrid moon phase service."""
+    def _calculate_moon_illumination_for_moment(self, target_dt: datetime) -> float:
+        """Calculate moon illumination for a specific moment (timezone-aware datetime)."""
         try:
-            # If we have a date, get precise illumination from service
-            if target_date is not None:
-                if hasattr(target_date, 'date'):
-                    target_date_obj = target_date.date()
-                else:
-                    target_date_obj = target_date
-                
-                moon_data = self._moon_phase_service.get_moon_phase_sync(target_date_obj)
-                return moon_data.illumination  # Already in 0.0-1.0 range
-            
-            # Fallback to approximate mapping if no date provided
-            illumination_map = {
-                MoonPhase.NEW_MOON: 0.0,
-                MoonPhase.WAXING_CRESCENT: 0.25,
-                MoonPhase.FIRST_QUARTER: 0.5,
-                MoonPhase.WAXING_GIBBOUS: 0.75,
-                MoonPhase.FULL_MOON: 1.0,
-                MoonPhase.WANING_GIBBOUS: 0.75,
-                MoonPhase.LAST_QUARTER: 0.5,
-                MoonPhase.WANING_CRESCENT: 0.25,
-            }
-            return illumination_map.get(moon_phase, 0.5)
-            
+            moon_data = self._moon_phase_service.get_moon_phase_sync(target_dt)
+            return moon_data.illumination
+
         except Exception as e:
             logger.warning(f"Failed to get moon illumination from hybrid service: {e}")
             # Fallback to approximate mapping
@@ -469,7 +476,12 @@ class AstronomyManager(QObject):
                 MoonPhase.LAST_QUARTER: 0.5,
                 MoonPhase.WANING_CRESCENT: 0.25,
             }
-            return illumination_map.get(moon_phase, 0.5)
+            # Derive phase based on the same moment, if possible
+            try:
+                phase = self._calculate_moon_phase_for_moment(target_dt)
+                return illumination_map.get(phase, 0.5)
+            except Exception:
+                return 0.5
 
 class AstronomyManagerFactory:
     """

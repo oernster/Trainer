@@ -781,6 +781,12 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(100, self._final_menu_sync)
             logger.debug("Widgets not ready for menu sync, retrying in 100ms")
 
+        # Start hourly top-of-hour refresh once the UI is fully initialized.
+        try:
+            self.event_handler_manager.setup_refresh_timer()
+        except Exception as e:
+            logger.warning(f"Failed to start hourly refresh timer: {e}")
+
     def show(self):
         """Override show to properly remove invisible attributes when ready."""
         # Remove all invisible attributes and restore normal visibility

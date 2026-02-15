@@ -15,6 +15,8 @@ from ...models.astronomy_data import AstronomyForecastData, AstronomyEvent
 from ...managers.astronomy_config import AstronomyConfig
 from .astronomy_forecast_panel import AstronomyForecastPanel
 
+from ...utils.url_utils import canonicalize_url
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,6 +37,9 @@ class AstronomyWidget(QWidget):
         super().__init__(parent)
         self._scale_factor = scale_factor
         self._config: Optional[AstronomyConfig] = None
+        # Tracks canonical URLs opened within the current forecast session so we
+        # can avoid repeatedly opening the same destination from different events.
+        self._opened_link_canon: set[str] = set()
         self._setup_ui()
         self._connect_signals()
 
@@ -143,38 +148,71 @@ class AstronomyWidget(QWidget):
 
     def _on_event_icon_clicked(self, event: AstronomyEvent) -> None:
         """Handle event icon click."""
-        # Get event-specific link based on event type
-        primary_link = event.get_primary_link() if hasattr(event, 'get_primary_link') else None
-        
-        if primary_link:
-            # Open the event-specific link
-            self._open_astronomy_link(primary_link)
-            logger.info(f"Opened event-specific link for {event.event_type.value}: {primary_link}")
-        else:
-            # Get suggested links for this event type
-            try:
-                from ...models.astronomy_links import astronomy_links_db
-                suggested_links = astronomy_links_db.get_suggested_links_for_event_type(event.event_type.value)
-                
-                if suggested_links:
-                    # Open the highest priority suggested link
-                    best_link = min(suggested_links, key=lambda x: x.priority)
-                    self._open_astronomy_link(best_link.url)
-                    logger.info(f"Opened suggested link for {event.event_type.value}: {best_link.name} - {best_link.url}")
-                else:
-                    # Final fallback to general NASA astronomy page
-                    self._open_nasa_astronomy_page()
-                    logger.info(f"Used fallback NASA page for {event.event_type.value}")
-                    
-            except ImportError:
-                # Fallback if astronomy_links module not available
-                self._open_nasa_astronomy_page()
-                logger.warning(f"Astronomy links database not available, using fallback for {event.event_type.value}")
+        # Prefer the first not-yet-opened canonical URL for this event.
+        candidates: list[str] = []
+        if hasattr(event, "get_link_urls"):
+            candidates = event.get_link_urls()
+        elif hasattr(event, "get_primary_link"):
+            primary_link = event.get_primary_link()
+            candidates = [primary_link] if primary_link else []
+
+        chosen_url: Optional[str] = None
+        for url in candidates:
+            canon = canonicalize_url(url)
+            if canon and canon not in self._opened_link_canon:
+                chosen_url = url
+                self._opened_link_canon.add(canon)
+                break
+
+        if chosen_url:
+            self._open_astronomy_link(chosen_url)
+            logger.info(f"Opened unique event link for {event.event_type.value}: {chosen_url}")
+            self.astronomy_event_clicked.emit(event)
+            logger.debug(f"Astronomy event clicked: {event.title} ({event.event_type.value})")
+            return
+
+        # If all event candidates are exhausted (or none exist), open a unique
+        # fallback destination instead of repeatedly sending the user to the
+        # same NASA page.
+        fallback_url = self._get_unique_fallback_url()
+        if fallback_url:
+            self._open_astronomy_link(fallback_url)
+            logger.info(
+                f"Opened unique fallback link for {event.event_type.value}: {fallback_url}"
+            )
+            self.astronomy_event_clicked.emit(event)
+            logger.debug(f"Astronomy event clicked: {event.title} ({event.event_type.value})")
+            return
+
+        # Final fallback to general NASA astronomy page
+        self._open_nasa_astronomy_page()
+        logger.info(f"Used fallback NASA page for {event.event_type.value}")
 
         # Emit signal for external handling
         self.astronomy_event_clicked.emit(event)
 
         logger.debug(f"Astronomy event clicked: {event.title} ({event.event_type.value})")
+
+    def _get_unique_fallback_url(self) -> Optional[str]:
+        """Pick a high-quality fallback URL that hasn't been opened yet."""
+
+        try:
+            from ...models.astronomy_links import astronomy_links_db
+
+            # Prefer priority ordering; keep it stable for predictability.
+            all_links = sorted(
+                astronomy_links_db.get_all_links(),
+                key=lambda link: (link.priority, link.category.value, link.name.lower()),
+            )
+            for link in all_links:
+                canon = canonicalize_url(link.url)
+                if canon and canon not in self._opened_link_canon:
+                    self._opened_link_canon.add(canon)
+                    return link.url
+        except Exception as exc:
+            logger.debug(f"Failed selecting unique fallback URL: {exc}")
+
+        return None
 
     def _open_night_sky_view(self) -> None:
         """Open current astronomical events page showing today's phenomena."""
@@ -297,6 +335,9 @@ class AstronomyWidget(QWidget):
 
     def on_astronomy_updated(self, forecast_data: AstronomyForecastData) -> None:
         """Handle astronomy data updates."""
+        # New forecast means we reset opened-link tracking.
+        self._opened_link_canon.clear()
+
         # Update forecast panel
         self._forecast_panel.update_forecast(forecast_data)
 

@@ -13,6 +13,8 @@ from enum import Enum
 from typing import Dict, List, Optional, Any
 from urllib.parse import urlparse
 
+from ..utils.url_utils import canonicalize_url
+
 logger = logging.getLogger(__name__)
 
 
@@ -388,8 +390,160 @@ class AstronomyLinksDatabase:
             tonight_sky_links + moon_info_links + educational_links +
             live_data_links + community_links
         )
-        
+
+        # Enforce uniqueness by canonical URL. If a collision occurs, keep the
+        # highest priority (lowest integer) and replace the losing entry with a
+        # new unique astronomy-oriented link in the same category.
+        by_canon: dict[str, AstronomyLink] = {}
+        replacements_by_category: dict[LinkCategory, list[AstronomyLink]] = {
+            # Observatories
+            LinkCategory.OBSERVATORY: [
+                AstronomyLink(
+                    name="Keck Observatory",
+                    url="https://www.keckobservatory.org/",
+                    category=LinkCategory.OBSERVATORY,
+                    emoji="🔭",
+                    description="W. M. Keck Observatory: news, science, and observing",
+                    priority=2,
+                    tags=["ground", "telescope", "hawaii", "keck"],
+                ),
+                AstronomyLink(
+                    name="ALMA Observatory",
+                    url="https://www.almaobservatory.org/",
+                    category=LinkCategory.OBSERVATORY,
+                    emoji="🔭",
+                    description="Atacama Large Millimeter/submillimeter Array (ALMA)",
+                    priority=2,
+                    tags=["ground", "radio", "millimeter", "alma"],
+                ),
+            ],
+            # Space agencies
+            LinkCategory.SPACE_AGENCY: [
+                AstronomyLink(
+                    name="CSA (Canada)",
+                    url="https://www.asc-csa.gc.ca/eng/",
+                    category=LinkCategory.SPACE_AGENCY,
+                    emoji="🚀",
+                    description="Canadian Space Agency: missions and science",
+                    priority=2,
+                    tags=["csa", "canada", "missions", "space"],
+                ),
+            ],
+            # Tools
+            LinkCategory.ASTRONOMY_TOOL: [
+                AstronomyLink(
+                    name="NASA Eyes",
+                    url="https://eyes.nasa.gov/",
+                    category=LinkCategory.ASTRONOMY_TOOL,
+                    emoji="📱",
+                    description="Interactive 3D solar system, exoplanets, and missions",
+                    priority=2,
+                    tags=["interactive", "3d", "missions", "nasa"],
+                ),
+            ],
+            # Tonight's sky
+            LinkCategory.TONIGHT_SKY: [
+                AstronomyLink(
+                    name="Heavens-Above Tonight",
+                    url="https://www.heavens-above.com/",
+                    category=LinkCategory.TONIGHT_SKY,
+                    emoji="🌌",
+                    description="What's visible tonight: satellites, ISS passes, and sky charts",
+                    priority=2,
+                    tags=["tonight", "satellites", "iss", "charts"],
+                ),
+            ],
+            # Moon info
+            LinkCategory.MOON_INFO: [
+                AstronomyLink(
+                    name="USNO Moon Phases",
+                    url="https://aa.usno.navy.mil/data/MoonPhases",
+                    category=LinkCategory.MOON_INFO,
+                    emoji="🌕",
+                    description="U.S. Naval Observatory moon phases data",
+                    priority=2,
+                    tags=["moon", "phases", "usno", "data"],
+                ),
+            ],
+            # Educational
+            LinkCategory.EDUCATIONAL: [
+                AstronomyLink(
+                    name="ESA Education",
+                    url="https://www.esa.int/Education",
+                    category=LinkCategory.EDUCATIONAL,
+                    emoji="📚",
+                    description="European Space Agency education resources",
+                    priority=2,
+                    tags=["esa", "education", "learning"],
+                ),
+            ],
+            # Live data
+            LinkCategory.LIVE_DATA: [
+                AstronomyLink(
+                    name="NOAA Space Weather Prediction Center",
+                    url="https://www.swpc.noaa.gov/",
+                    category=LinkCategory.LIVE_DATA,
+                    emoji="📡",
+                    description="Space weather alerts, forecasts, and real-time products",
+                    priority=2,
+                    tags=["space", "weather", "noaa", "alerts"],
+                ),
+            ],
+            # Community
+            LinkCategory.COMMUNITY: [
+                AstronomyLink(
+                    name="r/telescopes",
+                    url="https://www.reddit.com/r/telescopes/",
+                    category=LinkCategory.COMMUNITY,
+                    emoji="👥",
+                    description="Telescope advice, setups, and observing discussions",
+                    priority=3,
+                    tags=["community", "telescopes", "reddit"],
+                ),
+            ],
+        }
+
+        def _reserve_or_replace(candidate: AstronomyLink) -> AstronomyLink:
+            canon = canonicalize_url(candidate.url)
+            if not canon:
+                return candidate
+            existing = by_canon.get(canon)
+            if existing is None:
+                by_canon[canon] = candidate
+                return candidate
+
+            # Collision: keep highest priority (lowest number). If tie, keep existing.
+            keep_existing = existing.priority <= candidate.priority
+            winner = existing if keep_existing else candidate
+            loser = candidate if keep_existing else existing
+            by_canon[canon] = winner
+
+            logger.warning(
+                "Astronomy link URL collision detected (canon=%s). Keeping '%s' (priority=%s) and replacing '%s' (priority=%s).",
+                canon,
+                winner.name,
+                winner.priority,
+                loser.name,
+                loser.priority,
+            )
+
+            # Find a replacement unique URL for the loser category.
+            for replacement in replacements_by_category.get(loser.category, []):
+                rep_canon = canonicalize_url(replacement.url)
+                if rep_canon and rep_canon not in by_canon:
+                    by_canon[rep_canon] = replacement
+                    return winner
+
+            # If we can't find a unique replacement, just keep winner and drop loser.
+            return winner
+
+        # Process all links through collision handling
         for link in all_links:
+            _reserve_or_replace(link)
+
+        # Now populate name-keyed map from the canonical-unique set.
+        self._links.clear()
+        for link in by_canon.values():
             self._links[link.name.lower().replace(" ", "_")] = link
         
         logger.info(f"Initialized astronomy links database with {len(self._links)} links")
@@ -486,7 +640,17 @@ class AstronomyLinksDatabase:
                 if len(suggestions) >= 4:
                     break
         
-        return suggestions[:4]  # Limit to 4 suggestions
+        # Final de-dupe by canonical URL while preserving priority ordering.
+        unique: list[AstronomyLink] = []
+        seen_canon: set[str] = set()
+        for link in suggestions:
+            canon = canonicalize_url(link.url)
+            if not canon or canon in seen_canon:
+                continue
+            seen_canon.add(canon)
+            unique.append(link)
+
+        return unique[:4]  # Limit to 4 suggestions
 
 
 # Global instance of the astronomy links database

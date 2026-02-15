@@ -182,3 +182,44 @@ class TrainItemWidget(BaseTrainWidget):
             """
         
         self.setStyleSheet(style)
+
+        # Ensure child components are also themed.
+        # NOTE: Child components set their own stylesheets, which override the
+        # parent stylesheet. If we don't propagate theme changes, it's possible
+        # to end up with dark-theme (white) text on light backgrounds.
+        self._apply_theme_to_children(self.current_theme)
+
+    def _apply_theme_to_children(self, theme: str) -> None:
+        """Propagate theme changes to child components."""
+        for child in (
+            getattr(self, "main_info_section", None),
+            getattr(self, "details_section", None),
+            getattr(self, "calling_points_manager", None),
+            getattr(self, "location_section", None),
+        ):
+            if child is None:
+                continue
+            if hasattr(child, "apply_theme"):
+                child.apply_theme(theme)
+
+        # Some children (e.g. calling points, status colors) need a display
+        # refresh to re-apply per-label colors that were set at creation time.
+        calling_points = getattr(self, "calling_points_manager", None)
+        if calling_points is not None and hasattr(calling_points, "set_train_data"):
+            calling_points.set_train_data(self.train_data)
+
+        details = getattr(self, "details_section", None)
+        if details is not None and hasattr(details, "set_train_data"):
+            details.set_train_data(self.train_data)
+
+    def update_theme(self, theme: str) -> None:
+        """Update theme and refresh this widget and all sub-components."""
+        if theme == self.current_theme:
+            return
+
+        # Update own theme + stylesheet
+        self.current_theme = theme
+        self._apply_theme_styles()
+
+        # Ensure sub-components apply the new theme too.
+        self._apply_theme_to_children(theme)

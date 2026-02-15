@@ -7,15 +7,15 @@ weather integration features and build system information.
 """
 
 # Core application information
-__version__ = "4.1.0"  # Major version bump for weather integration
-__version_info__ = (4, 1, 0)
+__version__ = "5.0.0"  # Major version bump for weather integration
+__version_info__ = (5, 0, 0)
 __app_name__ = "Trainer"
 __app_display_name__ = "Trainer - Train Times with Weather Integration & Astronomical Events"
 __train_settings_title__ = "Train Settings"
 __nasa_settings_title__ = "NASA Settings"
 __author__ = "Oliver Ernster"
 __company__ = "Trainer by Oliver Ernster"
-__copyright__ = "© 2025 Oliver Ernster"
+__copyright__ = "© 2026 Oliver Ernster"
 __description__ = "Train times application with integrated weather forecasting and astronomical events"
 
 # Feature information
@@ -44,7 +44,7 @@ __weather_features__ = [
 ]
 
 # Astronomy integration information
-__astronomy_version__ = "1.0.0"
+__astronomy_version__ = "2.0.0"
 __astronomy_api_provider__ = "Hybrid Moon Phase Service"
 __astronomy_primary_api__ = "Sunrise-Sunset.org"
 __astronomy_secondary_api__ = "TimeAndDate.com"

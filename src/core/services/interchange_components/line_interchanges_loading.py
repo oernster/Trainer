@@ -19,20 +19,19 @@ def get_line_interchanges(*, service):
         service.logger.debug("Loading line interchanges data (lazy loading)")
 
         try:
-            try:
-                from ...utils.data_path_resolver import get_data_directory
+            from ....utils.data_path_resolver import get_data_directory
 
-                data_dir = get_data_directory()
-            except (ImportError, FileNotFoundError):
-                data_dir = Path(__file__).parent.parent.parent / "data"
+            data_dir = get_data_directory()
 
             interchange_file = data_dir / "interchange_connections.json"
             if not interchange_file.exists():
-                service.logger.error(
+                # Optional file: warn once per process and negative-cache the empty mapping.
+                service.logger.warning(
                     "Interchange connections file not found: %s",
                     interchange_file,
                 )
-                return {}
+                service._line_interchanges_cache = {}
+                return service._line_interchanges_cache
 
             with open(interchange_file, "r", encoding="utf-8") as f:
                 data = json.load(f)

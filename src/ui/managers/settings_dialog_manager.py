@@ -263,7 +263,10 @@ class SettingsDialogManager(QObject):
                 # Refresh train data with new settings
                 train_manager = getattr(self.main_window, 'train_manager', None)
                 if train_manager:
-                    train_manager.refresh_trains()
+                    if hasattr(train_manager, "fetch_trains"):
+                        train_manager.fetch_trains()
+                    elif hasattr(train_manager, "refresh_trains"):
+                        train_manager.refresh_trains()
                 
                 logger.debug("Stations settings applied and trains refreshed")
             

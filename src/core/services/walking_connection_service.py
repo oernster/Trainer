@@ -335,13 +335,14 @@ class WalkingConnectionService:
         # Try to use data path resolver
         try:
             from ...utils.data_path_resolver import get_lines_directory
+
             lines_dir = get_lines_directory()
         except (ImportError, FileNotFoundError):
-            # Fallback to old method
-            lines_dir = Path("src/data/lines")
+            # Data directory is optional for some features.
+            lines_dir = Path(__file__).parent.parent / "data" / "lines"
             
         if not lines_dir.exists():
-            self.logger.error(f"Lines directory not found: {lines_dir}")
+            self.logger.warning("Lines directory not found: %s", lines_dir)
             return {}
             
         try:
@@ -386,11 +387,13 @@ class WalkingConnectionService:
                 from ...utils.data_path_resolver import get_data_file_path
                 interchange_file = get_data_file_path("interchange_connections.json")
             except (ImportError, FileNotFoundError):
-                # Fallback to old method
-                interchange_file = Path("src/data/interchange_connections.json")
+                interchange_file = Path(__file__).parent.parent / "data" / "interchange_connections.json"
                 
             if not interchange_file.exists():
-                self.logger.error(f"Interchange connections file not found: {interchange_file}")
+                self.logger.warning(
+                    "Interchange connections file not found: %s",
+                    interchange_file,
+                )
                 return {}
                 
             with open(interchange_file, 'r', encoding='utf-8') as f:

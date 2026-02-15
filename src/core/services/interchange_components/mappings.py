@@ -14,7 +14,8 @@ def build_line_to_file_mapping(*, logger) -> dict[str, str]:
     line_to_file: dict[str, str] = {}
     lines_dir = get_lines_directory_fallback()
     if not lines_dir.exists():
-        logger.error("Lines directory not found: %s", lines_dir)
+        # Optional resource: warn and return empty mapping.
+        logger.warning("Lines directory not found: %s", lines_dir)
         return {}
 
     try:
@@ -77,7 +78,8 @@ def build_station_to_files_mapping(*, logger) -> dict[str, list[str]]:
     station_to_files: dict[str, list[str]] = {}
     lines_dir = get_lines_directory_fallback()
     if not lines_dir.exists():
-        logger.error("Lines directory not found: %s", lines_dir)
+        # Optional resource: warn and return empty mapping.
+        logger.warning("Lines directory not found: %s", lines_dir)
         return {}
 
     try:

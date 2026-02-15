@@ -49,30 +49,28 @@ class AioHttpClient(HTTPClient):
     def __init__(self, timeout_seconds: int = 10):
         """Initialize HTTP client with timeout."""
         self._timeout = aiohttp.ClientTimeout(total=timeout_seconds)
+        # Do not keep a process-global ClientSession: this app sometimes calls
+        # async workflows via `asyncio.run()` (new loop per call). Reusing a
+        # ClientSession across loops causes unclosed-session warnings and can
+        # break shutdown determinism.
         self._session: Optional[aiohttp.ClientSession] = None
-
-    async def _ensure_session(self) -> aiohttp.ClientSession:
-        """Ensure session is created."""
-        if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession(
-                timeout=self._timeout,
-                headers={"User-Agent": f"Trainer/{__weather_version__}"},
-            )
-        return self._session
 
     async def get(self, url: str, params: Dict) -> WeatherAPIResponse:
         """Make HTTP GET request."""
-        session = await self._ensure_session()
-
         try:
-            async with session.get(url, params=params) as response:
-                data = await response.json()
-                return WeatherAPIResponse(
-                    status_code=response.status,
-                    data=data,
-                    timestamp=datetime.now(),
-                    source=__weather_api_provider__,
-                )
+            headers = {"User-Agent": f"Trainer/{__weather_version__}"}
+            async with aiohttp.ClientSession(
+                timeout=self._timeout,
+                headers=headers,
+            ) as session:
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
+                    return WeatherAPIResponse(
+                        status_code=response.status,
+                        data=data,
+                        timestamp=datetime.now(),
+                        source=__weather_api_provider__,
+                    )
         except aiohttp.ClientError as e:
             raise WeatherNetworkException(f"Network error: {e}")
         except Exception as e:
@@ -80,35 +78,13 @@ class AioHttpClient(HTTPClient):
 
     async def close(self) -> None:
         """Close HTTP client."""
-        if self._session and not self._session.closed:
-            await self._session.close()
+        # No-op: sessions are per-request.
+        return
 
     def close_sync(self) -> None:
         """Close HTTP client synchronously (for shutdown)."""
-        if self._session and not self._session.closed:
-            try:
-                # Create a new event loop to properly close the session
-                import asyncio
-
-                try:
-                    # Try to get the current event loop
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        # If loop is running, schedule the close for later
-                        loop.create_task(self._session.close())
-                    else:
-                        # If loop is not running, run the close operation
-                        loop.run_until_complete(self._session.close())
-                except RuntimeError:
-                    # No event loop available, create a new one
-                    asyncio.run(self._session.close())
-
-                self._session = None
-                logger.debug("HTTP client session closed properly")
-            except Exception as e:
-                logger.warning(f"Error closing session: {e}")
-                # Fallback: just detach the session
-                self._session = None
+        # No-op: sessions are per-request.
+        return
 
 class OpenMeteoWeatherSource(WeatherDataSource):
     """

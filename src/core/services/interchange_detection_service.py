@@ -67,6 +67,9 @@ class InterchangeDetectionService:
         self._line_to_file_cache: Optional[Dict[str, str]] = None
         self._station_to_files_cache: Optional[Dict[str, List[str]]] = None
         self._line_interchanges_cache: Optional[Dict[str, List[Dict[str, Any]]]] = None
+
+        # Negative-cache flags for optional resources to avoid repeated WARNING spam.
+        self._interchange_file_missing: Optional[bool] = None
         
         # Thread locks for safe lazy loading
         self._coordinates_lock = threading.Lock()
@@ -209,18 +212,20 @@ class InterchangeDetectionService:
     def _calculate_interchange_walking_time(self, station_name: str, from_line: str, to_line: str) -> int:
         """Calculate estimated walking time for an interchange using data-driven approach."""
         try:
-            # Try to use data path resolver
-            try:
-                from ...utils.data_path_resolver import get_data_directory
-                data_dir = get_data_directory()
-            except (ImportError, FileNotFoundError):
-                # Fallback to old method
-                data_dir = Path(__file__).parent.parent.parent / "data"
+            from ...utils.data_path_resolver import get_data_directory
+
+            data_dir = get_data_directory()
             
             interchange_file = data_dir / "interchange_connections.json"
-            
+
             if not interchange_file.exists():
-                self.logger.error(f"Interchange connections file not found: {interchange_file}")
+                # Optional file: warn once and return a reasonable default.
+                if self._interchange_file_missing is not True:
+                    self.logger.warning(
+                        "Interchange connections file not found: %s",
+                        interchange_file,
+                    )
+                    self._interchange_file_missing = True
                 return 5  # Default time if file not found
             
             with open(interchange_file, 'r', encoding='utf-8') as f:

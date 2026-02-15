@@ -10,44 +10,16 @@ import sys
 import tempfile
 import os
 import traceback
-import faulthandler
 import io
 from pathlib import Path
 
 
-def _crash_log_path() -> Path:
-    """Best-effort crash log path for cases where logging isn't configured yet."""
-    return Path(tempfile.gettempdir()) / "trainer_crash.log"
+def _log_startup(logger) -> None:
+    logger.info("Trainer starting")
 
 
-def _debug_print(msg: str, *, force: bool = False) -> None:
-    """Best-effort debug print.
-
-    - When `TRAINER_STARTUP_DEBUG=1`, prints to stderr and appends to a temp crash log.
-    - When `force=True`, always emits regardless of env var (use for fatal errors).
-    """
-
-    if not force and os.environ.get("TRAINER_STARTUP_DEBUG") != "1":
-        return
-
-    try:
-        print(msg, file=sys.stderr, flush=True)
-    except Exception:
-        pass
-
-    try:
-        crash_path = _crash_log_path()
-        prior = crash_path.read_text(encoding="utf-8") if crash_path.exists() else ""
-        crash_path.write_text(prior + msg + "\n", encoding="utf-8")
-    except Exception:
-        pass
-
-
-# Enable faulthandler as early as possible. This helps catch hard crashes (e.g. Qt-level faults).
-try:
-    faulthandler.enable()
-except Exception:
-    pass
+def _log_shutdown(logger, exit_code: int) -> None:
+    logger.info("Trainer exiting with code %s", exit_code)
 
 # CRITICAL: Ultra-early singleton check before ANY imports or initialization
 def check_single_instance_ultra_early():
@@ -198,7 +170,17 @@ def cleanup_application_resources():
         except:
             pass
         
-        print("✅ Application shutdown completed")
+        # Keep a user-visible confirmation on stdout, even when console logging
+        # is set to WARNING+.
+        try:
+            print("✅ Application shutdown completed", flush=True)
+        except Exception:
+            pass
+
+        try:
+            logging.getLogger(__name__).info("Application shutdown completed")
+        except Exception:
+            pass
         
     except:
         pass
@@ -220,11 +202,6 @@ def setup_logging():
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / "train_times.log"
     
-    # NOTE: during diagnosis we want errors to actually be recorded.
-    # Allow overriding via TRAINER_LOG_LEVEL (default INFO).
-    level_name = os.environ.get("TRAINER_LOG_LEVEL", "INFO").upper()
-    level = getattr(logging, level_name, logging.INFO)
-
     file_handler = logging.FileHandler(str(log_file), encoding="utf-8")
 
     # Windows consoles can be cp1252. Ensure our console handler can emit unicode
@@ -242,15 +219,43 @@ def setup_logging():
         console_stream = sys.stderr
     console_handler = logging.StreamHandler(console_stream)
 
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[file_handler, console_handler],
-    )
+    # Default to a quiet console for interactive launches, while keeping a more
+    # detailed file log for post-mortems.
+    #
+    # Overrides:
+    # - TRAINER_CONSOLE_LOG_LEVEL (default WARNING)
+    # - TRAINER_FILE_LOG_LEVEL (default INFO)
+    # - TRAINER_LOG_LEVEL (legacy: sets both)
+    legacy_level = os.environ.get("TRAINER_LOG_LEVEL")
+    console_level_name = (
+        legacy_level or os.environ.get("TRAINER_CONSOLE_LOG_LEVEL", "WARNING")
+    ).upper()
+    file_level_name = (
+        legacy_level or os.environ.get("TRAINER_FILE_LOG_LEVEL", "INFO")
+    ).upper()
 
-    # Keep noisy libraries quiet by default, but do not suppress errors.
-    logging.getLogger("asyncio").setLevel(max(level, logging.WARNING))
-    logging.getLogger("aiohttp").setLevel(max(level, logging.WARNING))
+    console_level = getattr(logging, console_level_name, logging.WARNING)
+    file_level = getattr(logging, file_level_name, logging.INFO)
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+
+    formatter = logging.Formatter(
+        fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
+
+    file_handler.setLevel(file_level)
+    console_handler.setLevel(console_level)
+
+    # Replace any existing handlers (PySide apps sometimes re-enter logging setup).
+    root_logger.handlers.clear()
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
+
+    logging.getLogger("asyncio").setLevel(logging.WARNING)
+    logging.getLogger("aiohttp").setLevel(logging.WARNING)
 
 def setup_application_icon(app: QApplication):
     """
@@ -370,16 +375,13 @@ class SingleInstanceApplication(QApplication):
 def main():
     """Main application entry point."""
     try:
-        _debug_print("[trainer] main(): starting")
-
         # Setup logging first
         setup_logging()
         logger = logging.getLogger(__name__)
-        _debug_print("[trainer] logging configured")
+        _log_startup(logger)
 
         # Create single instance QApplication with dual protection
         app = SingleInstanceApplication(sys.argv)
-        _debug_print("[trainer] QApplication created")
         app.setApplicationName(__app_name__)
         app.setApplicationDisplayName(__app_display_name__)
         app.setApplicationVersion(__version__)
@@ -400,7 +402,6 @@ def main():
         splash.show()
         splash.show_message("Initializing application...")
         app.processEvents()  # Process events to show splash screen
-        _debug_print("[trainer] splash shown")
 
         try:
             # Initialize configuration manager (will use AppData on Windows)
@@ -408,7 +409,6 @@ def main():
             app.processEvents()
 
             config_manager = ConfigManager()
-            _debug_print("[trainer] ConfigManager created")
 
             # Install default config to AppData if needed
             if config_manager.install_default_config_to_appdata():
@@ -416,14 +416,12 @@ def main():
 
             # Load configuration
             config = config_manager.load_config()
-            _debug_print("[trainer] config loaded")
 
             # Create main window with shared config manager (but don't show it yet)
             splash.show_message("Creating main window...")
             app.processEvents()
 
             window = MainWindow(config_manager)
-            _debug_print("[trainer] MainWindow created")
 
             # Initialize train manager (now works offline without API)
             splash.show_message("Initializing train manager...")
@@ -431,7 +429,6 @@ def main():
 
             # Create train manager with updated config
             train_manager = TrainManager(config)
-            _debug_print("[trainer] TrainManager created")
 
             # Set the route from configuration for offline timetable generation
             # Only set route if we have valid station configuration
@@ -467,7 +464,6 @@ def main():
                 train_list_widget.set_train_manager(train_manager)
 
             connect_signals(window, train_manager)
-            _debug_print("[trainer] signals connected")
 
             # The optimized widget initialization will handle weather and NASA widgets
             # Train data will be fetched after widget initialization completes
@@ -501,7 +497,6 @@ def main():
             # Use proper signaling instead of timers
             if window.initialization_manager:
                 window.initialization_manager.initialization_completed.connect(on_widgets_ready)
-                _debug_print("[trainer] connected to initialization_completed")
                 
             else:
                 # Fallback if initialization manager not available - still use signals
@@ -522,19 +517,20 @@ def main():
             # Don't show main window immediately - wait for initialization to complete
             # The window will be shown by the on_widgets_ready callback
 
+            # Keep a user-visible confirmation on stdout, even when console
+            # logging is set to WARNING+.
             print("🚀 Trainer initialized successfully")
-            _debug_print("[trainer] entering Qt event loop")
+            logger.info("Trainer initialized successfully")
 
             # Start event loop
             exit_code = app.exec()
 
             # Comprehensive cleanup before exit
-            logger.info(f"Application exiting with code {exit_code}")
+            _log_shutdown(logger, exit_code)
             cleanup_application_resources()
             sys.exit(exit_code)
 
         except ConfigurationError as e:
-            _debug_print(f"[trainer] ConfigurationError: {e!r}", force=True)
             try:
                 traceback.print_exc()
             except Exception:
@@ -549,7 +545,6 @@ def main():
             sys.exit(1)
 
         except Exception as e:
-            _debug_print(f"[trainer] Fatal error: {e!r}", force=True)
             try:
                 traceback.print_exc()
             except Exception:
@@ -560,7 +555,7 @@ def main():
     finally:
         # Always cleanup the ultra-early lock file
         cleanup_ultra_early_lock()
-        _debug_print("[trainer] main(): exiting (finally)")
+
 
 if __name__ == "__main__":
     main()

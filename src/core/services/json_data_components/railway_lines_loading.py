@@ -49,7 +49,8 @@ def load_railway_lines_from_json(*, repo) -> list[RailwayLine]:
 
     # Load ALL JSON files from the lines directory
     if not repo.lines_directory.exists():
-        repo.logger.error("Lines directory not found: %s", repo.lines_directory)
+        # Optional in some deployments; do not emit ERROR on successful runs.
+        repo.logger.warning("Lines directory not found: %s", repo.lines_directory)
         return railway_lines
 
     json_files = list(repo.lines_directory.glob("*.json"))

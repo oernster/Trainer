@@ -228,6 +228,25 @@ class AstronomyManager(QObject):
         finally:
             self._set_loading_state(False)
 
+    # Backwards-compatible shims expected by some UI wiring.
+    def fetch_astronomy_data(self) -> None:
+        """Compatibility shim for legacy call sites.
+
+        Schedules an async refresh without blocking the Qt UI thread.
+        """
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(self.refresh_astronomy())
+            else:
+                asyncio.run(self.refresh_astronomy())
+        except RuntimeError:
+            asyncio.run(self.refresh_astronomy())
+
+    def cleanup(self) -> None:
+        """Compatibility shim for legacy shutdown call sites."""
+        self.shutdown()
+
     def _should_skip_refresh(self) -> bool:
         """Check if refresh should be skipped based on cache age."""
         if not self._last_update_time or not self._current_forecast:

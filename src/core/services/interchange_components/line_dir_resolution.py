@@ -8,10 +8,9 @@ from pathlib import Path
 def get_lines_directory_fallback() -> Path:
     """Resolve the lines directory, using the resolver if available."""
 
-    try:
-        from ...utils.data_path_resolver import get_lines_directory
+    # Always use the shared resolver. If it cannot locate data, it should raise
+    # (and the calling code can decide whether that is fatal or optional).
+    from ....utils.data_path_resolver import get_lines_directory
 
-        return get_lines_directory()
-    except (ImportError, FileNotFoundError):
-        return Path(__file__).parent.parent.parent / "data" / "lines"
+    return get_lines_directory()
 

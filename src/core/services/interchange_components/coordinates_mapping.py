@@ -12,7 +12,8 @@ def build_station_coordinates_mapping(*, logger) -> dict[str, dict[str, float]]:
 
     lines_dir = get_lines_directory_fallback()
     if not lines_dir.exists():
-        logger.error("Lines directory not found: %s", lines_dir)
+        # Optional: warn and return empty mapping.
+        logger.warning("Lines directory not found: %s", lines_dir)
         return {}
 
     try:

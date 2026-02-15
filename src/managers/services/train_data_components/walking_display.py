@@ -81,10 +81,15 @@ def process_walking_connection_display(
                     is_destination=False,
                 )
             )
-            logger.info("Added walking text between %s and %s", prev_station, station_name)
+            # High-frequency during generation; keep observability but avoid noisy INFO.
+            logger.debug(
+                "Added walking text between %s and %s",
+                prev_station,
+                station_name,
+            )
 
     elif is_walking and avoid_walking:
-        logger.info(
+        logger.debug(
             "Skipping walking connection display for %s due to avoid_walking preference",
             station_name,
         )

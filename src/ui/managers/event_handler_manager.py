@@ -8,6 +8,7 @@ for the main window interface.
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
+import asyncio
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer, QUrl
 from PySide6.QtGui import QDesktopServices, QCloseEvent
@@ -109,7 +110,11 @@ class EventHandlerManager:
             # Refresh train data
             train_manager = getattr(self.main_window, 'train_manager', None)
             if train_manager:
-                train_manager.refresh_trains()
+                # TrainManager exposes fetch_trains(); older code called refresh_trains().
+                if hasattr(train_manager, "fetch_trains"):
+                    train_manager.fetch_trains()
+                elif hasattr(train_manager, "refresh_trains"):
+                    train_manager.refresh_trains()
                 logger.debug("Train data refresh requested")
             
             # Refresh weather data
@@ -126,7 +131,11 @@ class EventHandlerManager:
         try:
             weather_manager = getattr(self.main_window, 'weather_manager', None)
             if weather_manager:
-                weather_manager.fetch_weather()
+                # Prefer async API if available.
+                if hasattr(weather_manager, "refresh_weather"):
+                    self._schedule_coroutine(weather_manager.refresh_weather())
+                elif hasattr(weather_manager, "fetch_weather"):
+                    weather_manager.fetch_weather()
                 logger.debug("Weather refresh requested")
         except Exception as e:
             logger.error(f"Error refreshing weather: {e}")
@@ -136,10 +145,30 @@ class EventHandlerManager:
         try:
             astronomy_manager = getattr(self.main_window, 'astronomy_manager', None)
             if astronomy_manager:
-                astronomy_manager.fetch_astronomy_data()
+                # Prefer async API if available.
+                if hasattr(astronomy_manager, "refresh_astronomy"):
+                    self._schedule_coroutine(astronomy_manager.refresh_astronomy())
+                elif hasattr(astronomy_manager, "fetch_astronomy_data"):
+                    astronomy_manager.fetch_astronomy_data()
                 logger.debug("Astronomy refresh requested")
         except Exception as e:
             logger.error(f"Error refreshing astronomy: {e}")
+
+    def _schedule_coroutine(self, coro) -> None:
+        """Schedule an async coroutine without blocking the Qt UI thread.
+
+        This is intentionally conservative: we prefer `asyncio.create_task` when a
+        loop is already running; otherwise we run the coroutine to completion.
+        """
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(coro)
+            else:
+                asyncio.run(coro)
+        except RuntimeError:
+            # No current loop (e.g. called from a non-async context in some builds)
+            asyncio.run(coro)
     
     def handle_close_event(self, event: QCloseEvent) -> None:
         """

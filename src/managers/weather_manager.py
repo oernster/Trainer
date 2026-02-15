@@ -472,3 +472,22 @@ class WeatherManager(QObject, WeatherSubject):
             logger.warning(f"Failed to shutdown API manager: {e}")
 
         logger.debug("WeatherManager shutdown complete")
+
+    # Backwards-compatible aliases expected by older UI manager code.
+    def fetch_weather(self) -> None:
+        """Compatibility shim for older synchronous refresh call sites.
+
+        Schedules an async refresh without blocking the Qt UI thread.
+        """
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(self.refresh_weather())
+            else:
+                asyncio.run(self.refresh_weather())
+        except RuntimeError:
+            asyncio.run(self.refresh_weather())
+
+    def cleanup(self) -> None:
+        """Compatibility shim for older shutdown call sites."""
+        self.shutdown()

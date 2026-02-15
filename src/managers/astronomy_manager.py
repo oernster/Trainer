@@ -11,11 +11,9 @@ Now API-free - generates static astronomy events without requiring NASA API.
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, time, timezone, tzinfo
+from datetime import datetime, timedelta, tzinfo
 from typing import Optional, Dict, Any, List
 from PySide6.QtCore import QObject, Signal, QTimer
-
-from zoneinfo import ZoneInfo
 
 from ..models.astronomy_data import (
     AstronomyForecastData,
@@ -28,6 +26,14 @@ from ..models.astronomy_data import (
 from ..managers.astronomy_config import AstronomyConfig
 from ..models.astronomy_data import MoonPhase
 from ..services.moon_phase_service import HybridMoonPhaseService
+
+from .astronomy_manager_helpers import (
+    anchor_dt_for_day,
+    calculate_moon_illumination_for_moment,
+    calculate_moon_phase_for_moment,
+    generate_static_astronomy_events,
+    get_config_timezone,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,60 +79,7 @@ class AstronomyManager(QObject):
 
     def _generate_static_astronomy_events(self) -> List[AstronomyEvent]:
         """Generate static astronomy events for demonstration."""
-        now = datetime.now()
-        events = []
-        
-        # Generate events for the next 7 days
-        for day_offset in range(7):
-            event_date = now + timedelta(days=day_offset)
-            
-            # Generate 2-4 events per day with variety
-            daily_events = [
-                AstronomyEvent(
-                    event_type=AstronomyEventType.PLANETARY_EVENT,
-                    title="Jupiter Visible",
-                    description="Jupiter is visible in the evening sky, reaching its highest point around midnight.",
-                    start_time=event_date.replace(hour=20, minute=30, second=0, microsecond=0),
-                    visibility_info="Eastern Sky, magnitude -2.1",
-                    related_links=["https://in-the-sky.org/"],
-                    suggested_categories=["Observatory", "Tonight's Sky"]
-                ),
-                AstronomyEvent(
-                    event_type=AstronomyEventType.MOON_PHASE,
-                    title="Moon Phase",
-                    description=f"The Moon is in {'Waxing Crescent' if day_offset < 3 else 'First Quarter' if day_offset < 5 else 'Waxing Gibbous'} phase.",
-                    start_time=event_date.replace(hour=22, minute=0, second=0, microsecond=0),
-                    visibility_info="Night Sky, magnitude -12.7",
-                    related_links=["https://www.timeanddate.com/moon/phases/"],
-                    suggested_categories=["Moon Info", "Tonight's Sky"]
-                ),
-                AstronomyEvent(
-                    event_type=AstronomyEventType.ISS_PASS,
-                    title="ISS Pass",
-                    description="International Space Station visible pass overhead.",
-                    start_time=event_date.replace(hour=6, minute=15, second=0, microsecond=0),
-                    visibility_info="Southwest to Northeast, magnitude -3.5",
-                    related_links=["https://spotthestation.nasa.gov/"],
-                    suggested_categories=["Space Agencies", "Live Data"]
-                ),
-                AstronomyEvent(
-                    event_type=AstronomyEventType.NEAR_EARTH_OBJECT,
-                    title="Orion Nebula",
-                    description="The Orion Nebula (M42) is well-positioned for observation.",
-                    start_time=event_date.replace(hour=23, minute=45, second=0, microsecond=0),
-                    visibility_info="Constellation Orion, magnitude 4.0",
-                    related_links=["https://www.eso.org/public/"],
-                    suggested_categories=["Observatory", "Educational"]
-                )
-            ]
-            
-            # Add some variety - not all events every day
-            if day_offset % 2 == 0:
-                events.extend(daily_events[:3])  # 3 events on even days
-            else:
-                events.extend(daily_events[:2])  # 2 events on odd days
-                
-        return events
+        return generate_static_astronomy_events(now=datetime.now())
 
     async def refresh_astronomy(
         self, force_refresh: bool = False
@@ -176,14 +129,19 @@ class AstronomyManager(QObject):
             
             # Create AstronomyData for each date with proper moon phases.
             # The UI wants the phase "tonight" for each day (22:00 local time).
-            tz = self._get_config_timezone()
-            anchor_local_time = time(22, 0)
+            tz = get_config_timezone(config=self._config)
 
             for event_date, date_events in sorted(events_by_date.items()):
-                anchor_dt = datetime.combine(event_date, anchor_local_time).replace(tzinfo=tz)
+                anchor_dt = anchor_dt_for_day(event_date=event_date, tz=tz)
 
-                moon_phase = self._calculate_moon_phase_for_moment(anchor_dt)
-                moon_illumination = self._calculate_moon_illumination_for_moment(anchor_dt)
+                moon_phase = calculate_moon_phase_for_moment(
+                    moon_phase_service=self._moon_phase_service,
+                    target_dt=anchor_dt,
+                )
+                moon_illumination = calculate_moon_illumination_for_moment(
+                    moon_phase_service=self._moon_phase_service,
+                    target_dt=anchor_dt,
+                )
                 
                 daily_data = AstronomyData(
                     date=event_date,
@@ -408,7 +366,7 @@ class AstronomyManager(QObject):
             return None
             
         try:
-            tz = self._get_config_timezone()
+            tz = get_config_timezone(config=self._config)
             now_local = datetime.now(tz)
             moon_data = self._moon_phase_service.get_moon_phase_sync(now_local)
             return {
@@ -441,66 +399,21 @@ class AstronomyManager(QObject):
 
         Falls back to UTC if the configured timezone is missing/invalid.
         """
-        tz_name = getattr(self._config, "timezone", None) or "UTC"
-        try:
-            return ZoneInfo(tz_name)
-        except Exception:
-            # Windows Python environments may not ship with IANA tzdata.
-            # Fall back to python-dateutil if available.
-            try:
-                from dateutil import tz
-
-                tzinfo_obj = tz.gettz(tz_name)
-                if tzinfo_obj is not None:
-                    return tzinfo_obj
-            except Exception:
-                pass
-
-            # Fall back to the system local timezone if possible, otherwise UTC.
-            logger.warning(
-                "Invalid/unavailable timezone '%s'; falling back to system local timezone",
-                tz_name,
-            )
-            return datetime.now().astimezone().tzinfo or timezone.utc
+        return get_config_timezone(config=self._config)
 
     def _calculate_moon_phase_for_moment(self, target_dt: datetime) -> MoonPhase:
         """Calculate moon phase for a specific moment (timezone-aware datetime)."""
-        try:
-            moon_data = self._moon_phase_service.get_moon_phase_sync(target_dt)
-
-            # Return the MoonPhase enum directly (no mapping needed)
-            return moon_data.phase
-
-        except Exception as e:
-            logger.warning(f"Failed to get moon phase from hybrid service: {e}")
-            # Fallback to a simple calculation if service fails
-            return MoonPhase.NEW_MOON
+        return calculate_moon_phase_for_moment(
+            moon_phase_service=self._moon_phase_service,
+            target_dt=target_dt,
+        )
 
     def _calculate_moon_illumination_for_moment(self, target_dt: datetime) -> float:
         """Calculate moon illumination for a specific moment (timezone-aware datetime)."""
-        try:
-            moon_data = self._moon_phase_service.get_moon_phase_sync(target_dt)
-            return moon_data.illumination
-
-        except Exception as e:
-            logger.warning(f"Failed to get moon illumination from hybrid service: {e}")
-            # Fallback to approximate mapping
-            illumination_map = {
-                MoonPhase.NEW_MOON: 0.0,
-                MoonPhase.WAXING_CRESCENT: 0.25,
-                MoonPhase.FIRST_QUARTER: 0.5,
-                MoonPhase.WAXING_GIBBOUS: 0.75,
-                MoonPhase.FULL_MOON: 1.0,
-                MoonPhase.WANING_GIBBOUS: 0.75,
-                MoonPhase.LAST_QUARTER: 0.5,
-                MoonPhase.WANING_CRESCENT: 0.25,
-            }
-            # Derive phase based on the same moment, if possible
-            try:
-                phase = self._calculate_moon_phase_for_moment(target_dt)
-                return illumination_map.get(phase, 0.5)
-            except Exception:
-                return 0.5
+        return calculate_moon_illumination_for_moment(
+            moon_phase_service=self._moon_phase_service,
+            target_dt=target_dt,
+        )
 
 # Backwards-compatible re-export
 from .astronomy_manager_factory import AstronomyManagerFactory  # noqa: E402

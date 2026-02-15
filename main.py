@@ -79,10 +79,9 @@ import logging
 from PySide6.QtWidgets import QApplication, QMessageBox
 from PySide6.QtCore import QTimer, QSize, QSharedMemory
 from PySide6.QtGui import QIcon
-from src.ui.main_window import MainWindow
 from src.ui.splash_screen import TrainerSplashScreen
-from src.managers.train_manager import TrainManager
 from src.managers.config_manager import ConfigManager, ConfigurationError
+from src.app.bootstrap import bootstrap_app
 from version import (
     __version__,
     __app_name__,
@@ -296,35 +295,6 @@ def setup_application_icon(app: QApplication):
     except Exception as e:
         logging.warning(f"Failed to create emoji icon, using default: {e}")
 
-def connect_signals(window: MainWindow, train_manager: TrainManager):
-    """
-    Connect signals between main window and train manager.
-
-    Args:
-        window: Main window instance
-        train_manager: Train manager instance
-    """
-    # Connect refresh signals (manual refresh only)
-    window.refresh_requested.connect(train_manager.fetch_trains)
-    
-    # Connect route change signal
-    window.route_changed.connect(train_manager.set_route)
-    
-    # Connect config update signal
-    window.config_updated.connect(train_manager.update_config)
-
-    # Connect train manager signals to window updates
-    train_manager.trains_updated.connect(window.update_train_display)
-    train_manager.connection_changed.connect(window.update_connection_status)
-    train_manager.last_update_changed.connect(window.update_last_update_time)
-    train_manager.error_occurred.connect(
-        lambda msg: window.show_error_message("Data Error", msg)
-    )
-
-    # Auto-refresh functionality removed
-
-    logging.info("Signals connected between main window and train manager")
-
 class SingleInstanceApplication(QApplication):
     """QApplication subclass that enforces single instance with dual protection."""
     
@@ -417,53 +387,22 @@ def main():
             # Load configuration
             config = config_manager.load_config()
 
-            # Create main window with shared config manager (but don't show it yet)
+            # Bootstrap application object graph (composition root)
             splash.show_message("Creating main window...")
             app.processEvents()
 
-            window = MainWindow(config_manager)
-
-            # Initialize train manager (now works offline without API)
             splash.show_message("Initializing train manager...")
             app.processEvents()
 
-            # Create train manager with updated config
-            train_manager = TrainManager(config)
-
-            # Set the route from configuration for offline timetable generation
-            # Only set route if we have valid station configuration
-            if (config and config.stations and
-                getattr(config.stations, 'from_name', None) and
-                getattr(config.stations, 'to_name', None)):
-                # Pass the route_path from configuration if available
-                route_path = getattr(config.stations, 'route_path', None)
-                train_manager.set_route(config.stations.from_name, config.stations.to_name, route_path)
-                if route_path:
-                    logger.debug(f"Route configured with path: {config.stations.from_name} -> {config.stations.to_name} ({len(route_path)} stations)")
-                else:
-                    logger.debug(f"Route configured without path: {config.stations.from_name} -> {config.stations.to_name}")
-            else:
-                logger.info("No valid station configuration found - train list will be empty until stations are configured")
+            container = bootstrap_app(config_manager=config_manager, config=config)
+            window = container.window
+            train_manager = container.train_manager
 
             # Connect signals between components
             splash.show_message("Connecting components...")
             app.processEvents()
 
-            # Attach train manager to window for access by dialogs
-            window.train_manager = train_manager
-            
-            # Set train manager on train list widget for interchange detection
-            train_list_widget = None
-            try:
-                ui_layout_manager = getattr(window, "ui_layout_manager", None)
-                train_list_widget = getattr(ui_layout_manager, "train_list_widget", None)
-            except Exception:
-                train_list_widget = None
-
-            if train_list_widget:
-                train_list_widget.set_train_manager(train_manager)
-
-            connect_signals(window, train_manager)
+            # Wiring is performed by bootstrap; keep this stage for splash parity.
 
             # The optimized widget initialization will handle weather and NASA widgets
             # Train data will be fetched after widget initialization completes
@@ -527,6 +466,13 @@ def main():
 
             # Comprehensive cleanup before exit
             _log_shutdown(logger, exit_code)
+
+            try:
+                container.shutdown()
+            except Exception:
+                # Shutdown must never prevent process exit.
+                pass
+
             cleanup_application_resources()
             sys.exit(exit_code)
 

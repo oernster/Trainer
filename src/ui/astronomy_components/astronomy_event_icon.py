@@ -25,18 +25,25 @@ class AstronomyEventIcon(QLabel):
 
     event_clicked = Signal(AstronomyEvent)
 
-    def __init__(self, event: AstronomyEvent, parent=None, scale_factor=1.0):
+    def __init__(
+        self,
+        event: AstronomyEvent,
+        parent=None,
+        scale_factor=1.0,
+        icon_override: str | None = None,
+    ):
         """Initialize astronomy event icon."""
         super().__init__(parent)
         self._event = event
         self._scale_factor = scale_factor
+        self._icon_override = icon_override
         self._setup_ui()
         self._setup_interactions()
 
     def _setup_ui(self) -> None:
         """Setup icon appearance."""
         # Set icon text
-        icon_text = self._event.event_icon
+        icon_text = self._icon_override or self._event.event_icon
         self.setText(icon_text)
 
         # Font size will be set in _setup_interactions method

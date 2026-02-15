@@ -203,3 +203,7 @@ trainer.exe
 # Cache files
 src/cache/cache_metadata.json
 src/cache/station_data.cache
+
+# rubbish
+generate_scripts.py
+ALL_SOURCES.txt

@@ -13,6 +13,8 @@ from PySide6.QtGui import QFont, QDesktopServices
 
 from ...models.astronomy_data import AstronomyData, AstronomyEvent
 
+from ...utils.url_utils import canonicalize_url
+
 logger = logging.getLogger(__name__)
 
 
@@ -65,6 +67,10 @@ class AstronomyEventDetails(QFrame):
         """Update details with astronomy data."""
         self._astronomy_data = astronomy_data
         self._clear_layout()
+
+        # Track URLs shown within this details view so we don't show repeated
+        # destinations when multiple events resolve to the same link.
+        self._used_link_canon: set[str] = set()
 
         if not astronomy_data.has_events:
             self._show_no_events(astronomy_data.date)
@@ -227,9 +233,25 @@ class AstronomyEventDetails(QFrame):
             visibility_label.setStyleSheet("color: #81c784; font-style: italic;")
             layout.addWidget(visibility_label)
 
-        # Link button for events with URLs
-        primary_url = event.get_primary_link() if hasattr(event, 'get_primary_link') else None
-        if primary_url:
+        # Link button for events with URLs.
+        # Prefer a URL not already shown in this details panel.
+        chosen_url: Optional[str] = None
+        if hasattr(event, "get_link_urls"):
+            for url in event.get_link_urls():
+                canon = canonicalize_url(url)
+                if canon and canon not in self._used_link_canon:
+                    chosen_url = url
+                    self._used_link_canon.add(canon)
+                    break
+        elif hasattr(event, "get_primary_link"):
+            primary_url = event.get_primary_link()
+            if primary_url:
+                canon = canonicalize_url(primary_url)
+                if canon and canon not in self._used_link_canon:
+                    chosen_url = primary_url
+                    self._used_link_canon.add(canon)
+
+        if chosen_url:
             link_button = QPushButton("🔗 View on Astronomy Website")
             link_button.setStyleSheet(
                 """
@@ -250,7 +272,7 @@ class AstronomyEventDetails(QFrame):
             """
             )
             link_button.clicked.connect(
-                lambda checked=False, url=primary_url: self._open_astronomy_link(url)
+                lambda checked=False, url=chosen_url: self._open_astronomy_link(url)
             )
             layout.addWidget(link_button)
 

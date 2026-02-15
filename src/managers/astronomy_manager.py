@@ -88,7 +88,7 @@ class AstronomyManager(QObject):
                     description="Jupiter is visible in the evening sky, reaching its highest point around midnight.",
                     start_time=event_date.replace(hour=20, minute=30, second=0, microsecond=0),
                     visibility_info="Eastern Sky, magnitude -2.1",
-                    related_links=["https://in-the-sky.org/jupiter.php"],
+                    related_links=["https://in-the-sky.org/"],
                     suggested_categories=["Observatory", "Tonight's Sky"]
                 ),
                 AstronomyEvent(
@@ -97,7 +97,7 @@ class AstronomyManager(QObject):
                     description=f"The Moon is in {'Waxing Crescent' if day_offset < 3 else 'First Quarter' if day_offset < 5 else 'Waxing Gibbous'} phase.",
                     start_time=event_date.replace(hour=22, minute=0, second=0, microsecond=0),
                     visibility_info="Night Sky, magnitude -12.7",
-                    related_links=["https://timeanddate.com/astronomy/moon/"],
+                    related_links=["https://www.timeanddate.com/moon/phases/"],
                     suggested_categories=["Moon Info", "Tonight's Sky"]
                 ),
                 AstronomyEvent(
@@ -115,7 +115,7 @@ class AstronomyManager(QObject):
                     description="The Orion Nebula (M42) is well-positioned for observation.",
                     start_time=event_date.replace(hour=23, minute=45, second=0, microsecond=0),
                     visibility_info="Constellation Orion, magnitude 4.0",
-                    related_links=["https://messier.seds.org/m/m042.html"],
+                    related_links=["https://www.eso.org/public/"],
                     suggested_categories=["Observatory", "Educational"]
                 )
             ]

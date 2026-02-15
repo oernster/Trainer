@@ -17,6 +17,8 @@ from urllib.parse import urlparse
 
 from version import __version__
 
+from ..utils.url_utils import dedupe_urls
+
 logger = logging.getLogger(__name__)
 
 
@@ -103,9 +105,11 @@ class AstronomyEvent:
     image_url: Optional[str] = None
     priority: AstronomyEventPriority = AstronomyEventPriority.MEDIUM
     metadata: Dict[str, Any] = field(default_factory=dict)
-    # New fields for enhanced link support
-    related_links: List[str] = field(default_factory=list)  # List of link IDs from astronomy_links_db
-    suggested_categories: List[str] = field(default_factory=list)  # Suggested link categories
+    # Link support
+    # NOTE: `related_links` are treated as direct URLs. The curated links
+    # database is consulted separately based on `event_type`.
+    related_links: List[str] = field(default_factory=list)
+    suggested_categories: List[str] = field(default_factory=list)
 
     def __post_init__(self):
         """Validate astronomy event data on creation."""
@@ -210,55 +214,40 @@ class AstronomyEvent:
             return f"{hours}h {minutes}m"
         return f"{minutes}m"
 
-    def get_suggested_links(self) -> List[str]:
-        """Get suggested astronomy links for this event type."""
+    def get_link_urls(self) -> List[str]:
+        """Get de-duplicated link URLs relevant for this event.
+
+        Order matters: curated suggestions (by event type) come first, followed
+        by any manually provided `related_links`.
+        """
+
+        urls: list[str] = []
+
+        # Curated suggestions
         try:
             # Import here to avoid circular imports
             from .astronomy_links import astronomy_links_db
-            
-            # Get suggested links based on event type
+
             event_type_str = self.event_type.value
             suggested_links = astronomy_links_db.get_suggested_links_for_event_type(event_type_str)
-            
-            # Combine with any manually specified related links
-            all_links = []
-            
-            # Add suggested links
-            for link in suggested_links:
-                all_links.append(link.name)
-            
-            # Add any manually specified related links
-            all_links.extend(self.related_links)
-            
-            return list(set(all_links))  # Remove duplicates
-            
+            urls.extend([link.url for link in suggested_links])
         except ImportError:
-            # Fallback if astronomy_links module not available
-            return self.related_links
+            pass
+
+        # Manual links (treated as URLs)
+        urls.extend(self.related_links)
+
+        return dedupe_urls(urls)
 
     def get_primary_link(self) -> Optional[str]:
-        """Get the primary link for this event (first suggested link)."""
-        
-        suggested_links = self.get_suggested_links()
-        if suggested_links:
-            try:
-                from .astronomy_links import astronomy_links_db
-                # Get the actual link URL for the first suggestion
-                link_key = suggested_links[0].lower().replace(" ", "_")
-                all_links = astronomy_links_db.get_all_links()
-                for link in all_links:
-                    if link.name.lower().replace(" ", "_") == link_key:
-                        return link.url
-            except ImportError:
-                pass
-        
-        return None
+        """Get the primary URL for this event."""
+
+        urls = self.get_link_urls()
+        return urls[0] if urls else None
 
     def has_multiple_links(self) -> bool:
         """Check if this event has multiple associated links."""
-        link_count = 0
-        link_count += len(self.get_suggested_links())
-        return link_count > 1
+        return len(self.get_link_urls()) > 1
 
 
 @dataclass(frozen=True)

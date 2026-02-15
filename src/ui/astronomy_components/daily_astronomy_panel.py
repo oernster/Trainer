@@ -100,7 +100,7 @@ class DailyAstronomyPanel(QFrame):
         self.setFixedHeight(scaled_height)
         self.setMinimumWidth(scaled_min_width)
 
-    def update_data(self, astronomy_data: AstronomyData) -> None:
+    def update_data(self, astronomy_data: AstronomyData, icon_overrides: list[str] | None = None) -> None:
         """Update panel with astronomy data."""
         self._astronomy_data = astronomy_data
 
@@ -115,7 +115,12 @@ class DailyAstronomyPanel(QFrame):
         events_to_show = astronomy_data.get_sorted_events(by_priority=True)[:4]
 
         for i, event in enumerate(events_to_show):
-            icon = AstronomyEventIcon(event, scale_factor=self._scale_factor)
+            override = icon_overrides[i] if icon_overrides and i < len(icon_overrides) else None
+            icon = AstronomyEventIcon(
+                event,
+                scale_factor=self._scale_factor,
+                icon_override=override,
+            )
             icon.event_clicked.connect(self.event_icon_clicked.emit)
             self._event_icons.append(icon)
             

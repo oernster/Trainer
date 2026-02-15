@@ -12,6 +12,8 @@ from PySide6.QtCore import Signal
 from ...models.astronomy_data import AstronomyForecastData, AstronomyEvent
 from .daily_astronomy_panel import DailyAstronomyPanel
 
+from ...utils.astronomy_icon_allocator import assign_unique_event_icons
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,10 +55,20 @@ class AstronomyForecastPanel(QWidget):
 
     def update_forecast(self, forecast_data: AstronomyForecastData) -> None:
         """Update forecast display with new data."""
+        # Compute icon overrides ensuring uniqueness across the full 7-day grid.
+        # We align with the exact ordering used by each DailyAstronomyPanel
+        # (sorted-by-priority, first 4 events).
+        days_events = [
+            day.get_sorted_events(by_priority=True)[:4]
+            for day in forecast_data.daily_astronomy[:7]
+        ]
+        icon_overrides_by_day = assign_unique_event_icons(days_events, per_day_limit=4)
+
         # Update each daily panel
         for i, panel in enumerate(self._daily_panels):
             if i < len(forecast_data.daily_astronomy):
-                panel.update_data(forecast_data.daily_astronomy[i])
+                overrides = icon_overrides_by_day[i] if i < len(icon_overrides_by_day) else None
+                panel.update_data(forecast_data.daily_astronomy[i], icon_overrides=overrides)
                 panel.show()
             else:
                 panel.hide()

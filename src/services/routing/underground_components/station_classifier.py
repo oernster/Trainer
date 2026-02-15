@@ -8,7 +8,7 @@ import logging
 from typing import Dict, Optional, Set, Tuple
 
 from .data_loader import UndergroundDataLoader
-from ...interfaces.i_data_repository import IDataRepository
+from src.core.interfaces.i_data_repository import IDataRepository
 
 
 class StationClassifier:

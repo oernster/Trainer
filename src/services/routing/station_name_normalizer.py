@@ -7,7 +7,7 @@ Handles station name normalization for case-insensitive comparison and London st
 import logging
 from typing import List, Optional, Dict, Any
 
-from ..interfaces.i_data_repository import IDataRepository
+from src.core.interfaces.i_data_repository import IDataRepository
 
 
 class StationNameNormalizer:

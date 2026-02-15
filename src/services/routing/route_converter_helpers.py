@@ -1,6 +1,9 @@
-"""Helper functions for [`RouteConverter`](src/core/services/route_converter.py:17).
+"""Helper functions for RouteConverter.
 
 Split out to keep modules under the <= 400 non-blank LOC gate.
+
+Phase 2 note: routing services were moved out of `src.core.services` into
+`src.services.routing`.
 """
 
 from __future__ import annotations

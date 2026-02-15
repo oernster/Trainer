@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from ...models.route import Route, RouteSegment
+from src.core.models.route import Route, RouteSegment
 
 
 @dataclass(frozen=True)

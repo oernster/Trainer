@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from ...models.train_data import TrainData, CallingPoint
-from ...core.services.interchange_detection_service import InterchangeDetectionService
 from ...ui.formatters.underground_formatter import UndergroundFormatter
 from .train_widgets_base import BaseTrainWidget
 from .route_display_dialog_helpers import (
@@ -46,6 +45,14 @@ class RouteDisplayDialog(QDialog):
         self.train_data = train_data
         self.current_theme = theme
         self.train_manager = train_manager
+
+        # Provide interchange detection without importing routing services directly
+        # (architecture guard: UI must not import src.services.routing.*).
+        self._interchange_detection_service = getattr(
+            train_manager,
+            "interchange_detection_service",
+            None,
+        )
         
         # Initialize Underground formatter for black box routing
         self.underground_formatter = UndergroundFormatter()
@@ -396,8 +403,11 @@ class RouteDisplayDialog(QDialog):
         # Check if we have route_segments data for line changes
         if hasattr(self.train_data, 'route_segments') and self.train_data.route_segments:
             # Use the InterchangeDetectionService for intelligent detection
-            interchange_service = InterchangeDetectionService()
-            interchanges = interchange_service.detect_user_journey_interchanges(self.train_data.route_segments)
+            interchange_service = self._interchange_detection_service
+            if interchange_service:
+                interchanges = interchange_service.detect_user_journey_interchanges(self.train_data.route_segments)
+            else:
+                interchanges = []
             
             # Check if this station is marked as a user journey change
             for interchange in interchanges:

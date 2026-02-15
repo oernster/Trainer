@@ -68,11 +68,21 @@ class SettingsDialogManager(QObject):
             theme_manager = getattr(self.main_window, "theme_manager", None)
             station_database = getattr(self.main_window, "station_database", None)
 
+            # Phase 2 boundary: inject routing services from the already-constructed
+            # TrainManager rather than constructing inside the dialog/UI.
+            train_manager = getattr(self.main_window, "train_manager", None)
+            station_service = getattr(train_manager, "route_calculation_service", None)
+            station_service = getattr(station_service, "station_service", None)
+            route_service = getattr(train_manager, "route_calculation_service", None)
+            route_service = getattr(route_service, "route_service", None)
+
             dialog = StationsSettingsDialog(
                 parent=self.main_window,
                 station_database=station_database,
                 config_manager=config_manager,
                 theme_manager=theme_manager,
+                station_service=station_service,
+                route_service=route_service,
             )
             self._open_dialogs['stations_settings'] = dialog
 

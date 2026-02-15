@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import deque
 from typing import Any, Dict, List
 
-from ...models.route import Route
+from src.core.models.route import Route
 
 
 def get_possible_destinations(*, network_builder, from_station: str, max_changes: int = 3) -> List[str]:

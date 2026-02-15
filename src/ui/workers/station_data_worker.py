@@ -181,7 +181,7 @@ class FastStationDataWorker(QThread):
             start_time = time.time()
             
             # Import here to avoid circular imports
-            from ...core.services.essential_station_cache import get_essential_stations
+            from ...services.routing.essential_station_cache import get_essential_stations
             
             if self._should_stop:
                 return

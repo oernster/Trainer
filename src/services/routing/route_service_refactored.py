@@ -7,9 +7,9 @@ Service implementation for route calculation and pathfinding using modular compo
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..interfaces.i_route_service import IRouteService
-from ..interfaces.i_data_repository import IDataRepository
-from ..models.route import Route
+from src.core.interfaces.i_route_service import IRouteService
+from src.core.interfaces.i_data_repository import IDataRepository
+from src.core.models.route import Route
 from .network_graph_builder import NetworkGraphBuilder
 from .pathfinding_algorithm import PathfindingAlgorithm
 from .route_converter import RouteConverter

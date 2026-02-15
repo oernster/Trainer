@@ -1,21 +1,15 @@
+"""Core package.
+
+Phase 2 boundary:
+  - `src.core` contains ONLY pure domain models + interfaces.
+  - All routing/service orchestration lives outside core (see `src.services.routing`).
 """
-Core Package
 
-Core services, interfaces, and models for the railway application.
-"""
+# Interfaces (ports)
+from .interfaces import IDataRepository, IRouteService, IStationService
 
-# Import interfaces
-from .interfaces import IStationService, IRouteService, IDataRepository
-
-# Import models
-from .models import Station, Route, RouteSegment, RailwayLine, LineType, LineStatus
-
-# Import services
-from .services import (
-    JsonDataRepository, StationService, RouteService, ServiceFactory,
-    get_service_factory, get_data_repository, get_station_service,
-    get_route_service, refresh_all_services, validate_services, shutdown_services
-)
+# Models (domain)
+from .models import LineStatus, LineType, RailwayLine, Route, RouteSegment, Station
 
 __all__ = [
     # Interfaces
@@ -30,19 +24,4 @@ __all__ = [
     'RailwayLine',
     'LineType',
     'LineStatus',
-    
-    # Services
-    'JsonDataRepository',
-    'StationService',
-    'RouteService',
-    'ServiceFactory',
-    
-    # Service Factory Functions
-    'get_service_factory',
-    'get_data_repository',
-    'get_station_service',
-    'get_route_service',
-    'refresh_all_services',
-    'validate_services',
-    'shutdown_services'
 ]

@@ -98,10 +98,10 @@ def _classify_layer(rel_path: Path) -> str | None:
         - shared_models: `src/models/**`
         - domain: pure core routing domain under `src/core/models/**` and
           `src/core/interfaces/**`
-        - application: orchestration and coordination under `src/core/services/**`
-          plus `src/managers/**` (non-UI)
-        - infrastructure: IO-bound adapters under `src/core/services/json_data_repository.py`,
-          `src/cache/**`, `src/api/**`, `src/data/**`, `src/utils/**`, `src/workers/**`
+        - application: orchestration and coordination under `src/managers/**` (non-UI)
+        - infrastructure: IO-bound adapters and external service implementations under
+          `src/services/**`, `src/cache/**`, `src/api/**`, `src/data/**`, `src/utils/**`,
+          `src/workers/**`
     """
 
     rel = rel_path.as_posix()
@@ -115,11 +115,12 @@ def _classify_layer(rel_path: Path) -> str | None:
     if rel.startswith("src/core/models/") or rel.startswith("src/core/interfaces/"):
         return LAYER_DOMAIN
 
-    if rel.startswith("src/core/services/") or rel.startswith("src/managers/"):
+    if rel.startswith("src/managers/"):
         return LAYER_APPLICATION
 
     if rel.startswith(
         (
+            "src/services/",
             "src/cache/",
             "src/api/",
             "src/data/",
@@ -175,7 +176,6 @@ def test_architecture_layering_constraints():
 
     domain_forbidden_prefixes = (
         # Application + UI
-        "src.core.services",
         "src.managers",
         "src.ui",
         # Infrastructure
@@ -195,6 +195,10 @@ def test_architecture_layering_constraints():
         # UI must not reach into core routing domain directly
         "src.core.models",
         "src.core.interfaces",
+        # UI must not import routing/services implementations directly
+        # NOTE: We allow importing `src.services.routing.essential_station_cache` as a
+        # small, explicitly-approved transitional shim for UI responsiveness.
+        "src.services.routing",
     )
 
     violations: list[ImportViolation] = []
@@ -229,6 +233,8 @@ def test_architecture_layering_constraints():
                     )
                 )
             elif layer == LAYER_UI and module.startswith(ui_forbidden_prefixes):
+                if module.startswith("src.services.routing.essential_station_cache"):
+                    continue
                 violations.append(
                     ImportViolation(
                         file=rel,

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from ...models.route import Route
+from src.core.models.route import Route
 
 from .cache import build_route_cache_key
 from .misc import routes_similar

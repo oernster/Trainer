@@ -9,8 +9,8 @@ for maximum accuracy and reliability in moon phase determination.
 import logging
 import asyncio
 import aiohttp
-from datetime import date, datetime, timedelta
-from typing import Optional, Dict, Any, List, Tuple
+from datetime import date, datetime, timedelta, time, timezone
+from typing import Optional, Dict, Any, List, Tuple, Union
 from dataclasses import dataclass
 from enum import Enum
 import json
@@ -42,76 +42,79 @@ class MoonPhaseResult:
 
 class EnhancedMoonPhaseCalculator:
     """Enhanced local moon phase calculator with multiple reference points."""
-    
-    # Verified new moon dates from USNO data (UTC)
-    REFERENCE_NEW_MOONS = [
-        (date(2020, 1, 24), "2020-01-24 verified USNO"),
-        (date(2021, 1, 13), "2021-01-13 verified USNO"),
-        (date(2022, 1, 2), "2022-01-02 verified USNO"),
-        (date(2023, 1, 21), "2023-01-21 verified USNO"),
-        (date(2024, 1, 11), "2024-01-11 verified USNO"),  # CORRECTED: Jan 1 was wrong!
-        (date(2025, 1, 29), "2025-01-29 verified USNO"),
-        (date(2026, 1, 18), "2026-01-18 verified USNO"),
-    ]
-    
-    # Precise lunar cycle in days (more accurate than 29.53)
-    LUNAR_CYCLE_DAYS = 29.530588853
+
+    # Mean synodic month length (days). This is the standard value used by many
+    # practical phase algorithms and is sufficiently accurate for an 8-phase UI.
+    SYNODIC_MONTH_DAYS = 29.530588853
+
+    # A widely-used epoch new moon time (UTC). Source: Meeus / common astronomical
+    # references for phase algorithms.
+    EPOCH_NEW_MOON_UTC = datetime(2000, 1, 6, 18, 14, tzinfo=timezone.utc)
+
+    # For date-only callers, pick a stable representative time to avoid day-boundary
+    # flips (previously a date-only algorithm would frequently drift by ~1 day).
+    DEFAULT_DATE_TIME_UTC = time(12, 0)  # 12:00 UTC
     
     def __init__(self):
         """Initialize the enhanced calculator."""
         logger.info("Enhanced Moon Phase Calculator initialized with USNO reference points")
     
-    def get_closest_reference(self, target_date: date) -> Tuple[date, str]:
-        """Get the closest reference new moon date to minimize calculation error."""
-        min_distance = float('inf')
-        closest_ref = self.REFERENCE_NEW_MOONS[0]
-        
-        for ref_date, description in self.REFERENCE_NEW_MOONS:
-            distance = abs((target_date - ref_date).days)
-            if distance < min_distance:
-                min_distance = distance
-                closest_ref = (ref_date, description)
-        
-        return closest_ref
-    
-    def calculate_moon_phase(self, target_date: date) -> Tuple[MoonPhase, float]:
-        """Calculate moon phase and illumination for a given date."""
-        # Ensure target_date is a date object, not datetime
-        if isinstance(target_date, datetime):
-            target_date = target_date.date()
-            
-        # Get closest reference point
-        ref_date, ref_description = self.get_closest_reference(target_date)
-        
-        # Calculate days since reference new moon
-        days_since_ref = (target_date - ref_date).days
-        
-        # Calculate current position in lunar cycle
-        cycle_position = (days_since_ref % self.LUNAR_CYCLE_DAYS) / self.LUNAR_CYCLE_DAYS
-        
-        # Calculate precise illumination based on cycle position
-        # Illumination follows a cosine curve over the lunar cycle
-        illumination = (1 - math.cos(2 * math.pi * cycle_position)) / 2
-        
-        # Map cycle position to moon phases with more precise boundaries
-        if cycle_position < 0.03125:  # 0-0.92 days
+
+    def _to_utc_datetime(self, target: Union[date, datetime]) -> datetime:
+        """Normalize a date/datetime input to an aware UTC datetime."""
+        if isinstance(target, datetime):
+            dt = target
+        else:
+            dt = datetime.combine(target, self.DEFAULT_DATE_TIME_UTC)
+
+        if dt.tzinfo is None:
+            # Treat naive timestamps as UTC to avoid silently using the local OS timezone.
+            logger.warning(
+                "Naive datetime passed to moon phase calculator; assuming UTC. "
+                "Pass a timezone-aware datetime for correct results."
+            )
+            dt = dt.replace(tzinfo=timezone.utc)
+
+        return dt.astimezone(timezone.utc)
+
+    def calculate_moon_phase(self, target: Union[date, datetime]) -> Tuple[MoonPhase, float]:
+        """Calculate moon phase and illumination for a given moment (UTC-normalized)."""
+        dt_utc = self._to_utc_datetime(target)
+
+        seconds_since_epoch = (dt_utc - self.EPOCH_NEW_MOON_UTC).total_seconds()
+        cycle_seconds = self.SYNODIC_MONTH_DAYS * 86400.0
+        phase_fraction = (seconds_since_epoch / cycle_seconds) % 1.0  # [0, 1)
+
+        # Illumination: 0.0 (new) -> 1.0 (full)
+        phase_angle = 2 * math.pi * phase_fraction
+        illumination = (1 - math.cos(phase_angle)) / 2
+
+        # Map phase fraction to 8-phase buckets.
+        # Boundaries are at 22.5° increments (1/16 of a cycle):
+        # new at 0, first quarter at 0.25, full at 0.5, last quarter at 0.75.
+        if phase_fraction < 1 / 16 or phase_fraction >= 15 / 16:
             phase = MoonPhase.NEW_MOON
-        elif cycle_position < 0.21875:  # 0.92-6.46 days
+        elif phase_fraction < 3 / 16:
             phase = MoonPhase.WAXING_CRESCENT
-        elif cycle_position < 0.28125:  # 6.46-8.31 days
+        elif phase_fraction < 5 / 16:
             phase = MoonPhase.FIRST_QUARTER
-        elif cycle_position < 0.46875:  # 8.31-13.84 days
+        elif phase_fraction < 7 / 16:
             phase = MoonPhase.WAXING_GIBBOUS
-        elif cycle_position < 0.53125:  # 13.84-15.69 days
+        elif phase_fraction < 9 / 16:
             phase = MoonPhase.FULL_MOON
-        elif cycle_position < 0.71875:  # 15.69-21.22 days
+        elif phase_fraction < 11 / 16:
             phase = MoonPhase.WANING_GIBBOUS
-        elif cycle_position < 0.78125:  # 21.22-23.07 days
+        elif phase_fraction < 13 / 16:
             phase = MoonPhase.LAST_QUARTER
-        else:  # 23.07-29.53 days
+        else:
             phase = MoonPhase.WANING_CRESCENT
-        
-        logger.debug(f"Local calculation: {target_date} -> {phase.value} (ref: {ref_description})")
+
+        logger.debug(
+            "Local calculation (UTC): %s -> %s (phase_fraction=%.4f)",
+            dt_utc.isoformat(),
+            phase.value,
+            phase_fraction,
+        )
         return phase, illumination
 
 
@@ -200,28 +203,46 @@ class HybridMoonPhaseService:
         self.cache: Dict[str, MoonPhaseResult] = {}
         self.cache_duration = timedelta(hours=6)  # Cache for 6 hours
         
-    def _get_cache_key(self, target_date: date) -> str:
-        """Generate cache key for a date."""
-        return f"moon_phase_{target_date.isoformat()}"
+    def _get_cache_key(self, target: Union[date, datetime]) -> str:
+        """Generate cache key for a target moment.
+
+        - For date-only inputs, cache per-calendar-date.
+        - For datetime inputs, cache per-hour (UTC) so the "current" phase can
+          move through phase-change boundaries in long-running sessions.
+        """
+        if isinstance(target, datetime):
+            dt = target
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            dt_utc = dt.astimezone(timezone.utc)
+            return f"moon_phase_{dt_utc.strftime('%Y-%m-%dT%H')}Z"
+
+        return f"moon_phase_{target.isoformat()}"
     
     def _is_cache_valid(self, result: MoonPhaseResult) -> bool:
         """Check if cached result is still valid."""
         return (datetime.now() - result.timestamp) < self.cache_duration
     
-    async def get_moon_phase(self, target_date: date, lat: float = 51.5074, lon: float = -0.1278) -> MoonPhaseResult:
+    async def get_moon_phase(
+        self,
+        target: Union[date, datetime],
+        lat: float = 51.5074,
+        lon: float = -0.1278,
+    ) -> MoonPhaseResult:
         """Get moon phase using hybrid approach: API first, then local calculation."""
-        cache_key = self._get_cache_key(target_date)
+        cache_key = self._get_cache_key(target)
         
         # Check cache first
         if cache_key in self.cache:
             cached_result = self.cache[cache_key]
             if self._is_cache_valid(cached_result):
-                logger.debug(f"Returning cached moon phase for {target_date}")
+                logger.debug(f"Returning cached moon phase for {target}")
                 return cached_result
         
         # Try API first
         try:
-            api_result = await self.api.get_moon_phase_from_api(target_date, lat, lon)
+            target_date_for_api = target.date() if isinstance(target, datetime) else target
+            api_result = await self.api.get_moon_phase_from_api(target_date_for_api, lat, lon)
             if api_result:
                 phase, illumination = api_result
                 result = MoonPhaseResult(
@@ -234,14 +255,14 @@ class HybridMoonPhaseService:
                 
                 # Cache the result
                 self.cache[cache_key] = result
-                logger.info(f"Moon phase from API for {target_date}: {phase.value}")
+                logger.info(f"Moon phase from API for {target}: {phase.value}")
                 return result
                 
         except Exception as e:
-            logger.warning(f"API failed for {target_date}: {e}")
+            logger.warning(f"API failed for {target}: {e}")
         
         # Fallback to enhanced local calculation
-        phase, illumination = self.calculator.calculate_moon_phase(target_date)
+        phase, illumination = self.calculator.calculate_moon_phase(target)
         result = MoonPhaseResult(
             phase=phase,
             illumination=illumination,
@@ -252,12 +273,12 @@ class HybridMoonPhaseService:
         
         # Cache the result
         self.cache[cache_key] = result
-        logger.info(f"Moon phase from local calculation for {target_date}: {phase.value}")
+        logger.info(f"Moon phase from local calculation for {target}: {phase.value}")
         return result
     
-    def get_moon_phase_sync(self, target_date: date) -> MoonPhaseResult:
+    def get_moon_phase_sync(self, target: Union[date, datetime]) -> MoonPhaseResult:
         """Synchronous version using only local calculation."""
-        phase, illumination = self.calculator.calculate_moon_phase(target_date)
+        phase, illumination = self.calculator.calculate_moon_phase(target)
         return MoonPhaseResult(
             phase=phase,
             illumination=illumination,

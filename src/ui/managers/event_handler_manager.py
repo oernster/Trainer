@@ -6,6 +6,7 @@ for the main window interface.
 """
 
 import logging
+from datetime import datetime, timedelta
 from typing import Optional
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer, QUrl
@@ -36,6 +37,10 @@ class EventHandlerManager:
         # Timer for periodic refresh
         self.refresh_timer = QTimer()
         self.refresh_timer.timeout.connect(self._on_refresh_timer)
+
+        # Timer to align refreshes to the top of the hour (local time)
+        self.hourly_refresh_timer = QTimer()
+        self.hourly_refresh_timer.timeout.connect(self._on_hourly_refresh_timer)
         
         logger.debug("EventHandlerManager initialized")
     
@@ -46,17 +51,52 @@ class EventHandlerManager:
     
     def setup_refresh_timer(self) -> None:
         """Setup automatic refresh timer based on configuration."""
-        config = getattr(self.main_window, 'config', None)
-        if not config or not hasattr(config, 'refresh_interval_minutes'):
-            return
-            
-        if config.refresh_interval_minutes > 0:
-            interval_ms = config.refresh_interval_minutes * 60 * 1000
-            self.refresh_timer.start(interval_ms)
-            logger.info(f"Refresh timer started with {config.refresh_interval_minutes} minute interval")
-        else:
+        # Trainer's moon phase UI needs to stay synchronized over long uptimes.
+        # Refresh once an hour *on the hour*.
+        self._start_hourly_refresh_on_the_hour()
+
+        # Disable legacy interval-based timer (Trainer uses the top-of-hour schedule).
+        if self.refresh_timer.isActive():
             self.refresh_timer.stop()
-            logger.info("Refresh timer disabled")
+
+    def shutdown(self) -> None:
+        """Stop timers managed by this handler."""
+        try:
+            if self.refresh_timer.isActive():
+                self.refresh_timer.stop()
+            if self.hourly_refresh_timer.isActive():
+                self.hourly_refresh_timer.stop()
+        except Exception as e:
+            logger.error(f"Failed to shutdown EventHandlerManager timers: {e}")
+
+    def _start_hourly_refresh_on_the_hour(self) -> None:
+        """Start an hourly refresh that fires on the top of the hour (local time)."""
+        # Stop any previous schedule
+        if self.hourly_refresh_timer.isActive():
+            self.hourly_refresh_timer.stop()
+
+        now = datetime.now()
+        next_hour = (now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1))
+        ms_until_next_hour = max(1, int((next_hour - now).total_seconds() * 1000))
+
+        # One-shot to align to the next hour
+        QTimer.singleShot(ms_until_next_hour, self._arm_hourly_refresh_timer)
+        logger.info(
+            "Hourly refresh scheduled: next run at %s (%dms)",
+            next_hour.isoformat(timespec="seconds"),
+            ms_until_next_hour,
+        )
+
+    def _arm_hourly_refresh_timer(self) -> None:
+        """Arm repeating hourly refresh once alignment point is reached."""
+        self._on_hourly_refresh_timer()  # run immediately at alignment
+        self.hourly_refresh_timer.start(60 * 60 * 1000)
+        logger.info("Hourly refresh timer armed (interval: 3600s)")
+
+    def _on_hourly_refresh_timer(self) -> None:
+        """Handle hourly refresh timer timeout."""
+        logger.debug("Hourly refresh triggered (top of hour)")
+        self.refresh_all_data()
     
     def _on_refresh_timer(self) -> None:
         """Handle automatic refresh timer timeout."""
@@ -116,6 +156,10 @@ class EventHandlerManager:
             # Stop refresh timer
             if self.refresh_timer.isActive():
                 self.refresh_timer.stop()
+
+            # Stop hourly refresh timer
+            if self.hourly_refresh_timer.isActive():
+                self.hourly_refresh_timer.stop()
             
             # Clean up managers
             self._cleanup_managers()
@@ -321,6 +365,9 @@ class EventHandlerManager:
                 if self.refresh_timer.isActive():
                     self.refresh_timer.stop()
                     logger.debug("Refresh timer paused (window minimized)")
+                if self.hourly_refresh_timer.isActive():
+                    self.hourly_refresh_timer.stop()
+                    logger.debug("Hourly refresh timer paused (window minimized)")
             else:
                 # Resume refresh timer when restored
                 self.setup_refresh_timer()

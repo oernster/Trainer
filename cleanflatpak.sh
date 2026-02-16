@@ -8,8 +8,9 @@ if ! command -v flatpak >/dev/null 2>&1; then
   exit 1
 fi
 
-MODE="--user"  # default
+MODE="--all"  # default: clean both user and system installs
 PURGE_DATA=0
+KILL_RUNNING=0
 
 usage() {
   cat <<'EOF'
@@ -18,11 +19,41 @@ Usage: ./cleanflatpak.sh [--user|--system|--all] [--purge-data]
 Removes the installed Trainer Flatpak(s): com.oliverernster.Trainer
 
 Options:
-  --user        Uninstall the per-user install (default)
+  --user        Uninstall the per-user install
   --system      Uninstall the system-wide install (may prompt for auth)
-  --all         Try both --user and --system
+  --all         Try both --user and --system (default)
+  --kill         Attempt to terminate a running instance first (flatpak kill)
   --purge-data  Also remove leftover user data folder (~/.var/app/<APP_ID>)
 EOF
+}
+
+cleanup_desktop_integration() {
+  # Some install flows (e.g. older versions of build_flatpak.sh) copy a desktop
+  # file and icons into ~/.local/share/* in addition to Flatpak exports.
+  # Flatpak uninstall does not remove these extra copies, which can leave a
+  # “ghost” launcher entry in the desktop environment.
+
+  local desktop_file="${HOME}/.local/share/applications/${APP_ID}.desktop"
+
+  if [[ -f "$desktop_file" ]]; then
+    echo "Removing local desktop file: $desktop_file"
+    rm -f "$desktop_file" || true
+  fi
+
+  # Remove any locally installed icons for this app id
+  local icon_root="${HOME}/.local/share/icons/hicolor"
+  if [[ -d "$icon_root" ]]; then
+    # Typical locations used by build scripts
+    find "$icon_root" -type f -path "*/apps/${APP_ID}.*" -print -delete 2>/dev/null || true
+  fi
+
+  # Refresh desktop db and icon cache (best-effort)
+  if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database "${HOME}/.local/share/applications" 2>/dev/null || true
+  fi
+  if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -f -t "${HOME}/.local/share/icons/hicolor" 2>/dev/null || true
+  fi
 }
 
 while [[ $# -gt 0 ]]; do
@@ -38,6 +69,9 @@ while [[ $# -gt 0 ]]; do
       ;;
     --purge-data)
       PURGE_DATA=1
+      ;;
+    --kill)
+      KILL_RUNNING=1
       ;;
     -h|--help)
       usage
@@ -74,6 +108,30 @@ uninstall_one_scope() {
   fi
 }
 
+cleanup_lock_files() {
+  # Remove any stale singleton lock files created by the app.
+  # Note: these are *not* Flatpak-managed, so uninstall won't remove them.
+  local tmp_lock="/tmp/trainer_app_ultra_early.lock"
+  local runtime_lock=""
+  if [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
+    runtime_lock="${XDG_RUNTIME_DIR}/trainer_app_ultra_early.lock"
+  fi
+
+  if [[ -f "$tmp_lock" ]]; then
+    echo "Removing lock file: $tmp_lock"
+    rm -f "$tmp_lock" || true
+  fi
+  if [[ -n "$runtime_lock" && -f "$runtime_lock" ]]; then
+    echo "Removing lock file: $runtime_lock"
+    rm -f "$runtime_lock" || true
+  fi
+}
+
+if [[ "$KILL_RUNNING" -eq 1 ]]; then
+  echo "Attempting to stop any running instance (flatpak kill)…"
+  flatpak kill "$APP_ID" 2>/dev/null || true
+fi
+
 case "$MODE" in
   --user|--system)
     uninstall_one_scope "$MODE"
@@ -84,6 +142,12 @@ case "$MODE" in
     ;;
 esac
 
+# Always attempt to remove any extra desktop integration artifacts.
+cleanup_desktop_integration
+
+# Clean up any stale singleton lock files on the host.
+cleanup_lock_files
+
 if [[ "$PURGE_DATA" -eq 1 ]]; then
   data_dir="${HOME}/.var/app/${APP_ID}"
   if [[ -d "$data_dir" ]]; then
@@ -93,4 +157,3 @@ if [[ "$PURGE_DATA" -eq 1 ]]; then
 fi
 
 echo "Done."
-

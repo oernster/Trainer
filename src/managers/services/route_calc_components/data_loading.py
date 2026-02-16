@@ -17,7 +17,9 @@ def load_all_line_data(*, service) -> dict[str, dict]:
 
     try:
         try:
-            from ...utils.data_path_resolver import get_lines_directory
+            # NOTE: this module lives at `src.managers.services.route_calc_components`.
+            # To reach `src.utils.*` we must go up 3 levels to `src`.
+            from ....utils.data_path_resolver import get_lines_directory
 
             lines_dir = get_lines_directory()
         except (ImportError, FileNotFoundError):
@@ -51,7 +53,9 @@ def load_walking_connections(*, service) -> dict:
 
     try:
         try:
-            from ...utils.data_path_resolver import get_data_file_path
+            # NOTE: this module lives at `src.managers.services.route_calc_components`.
+            # To reach `src.utils.*` we must go up 3 levels to `src`.
+            from ....utils.data_path_resolver import get_data_file_path
 
             connections_file = get_data_file_path("interchange_connections.json")
         except (ImportError, FileNotFoundError):
@@ -91,4 +95,3 @@ def load_walking_connections(*, service) -> dict:
     except Exception as exc:  # pragma: no cover
         logger.error("Error loading walking connections: %s", exc)
         return {}
-

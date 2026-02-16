@@ -16,6 +16,37 @@ from pathlib import Path
 
 def _log_startup(logger) -> None:
     logger.info("Trainer starting")
+    try:
+        import os
+        import sys
+
+        logger.info("sys.executable=%s", sys.executable)
+        logger.info("cwd=%s", os.getcwd())
+        logger.info("argv=%s", sys.argv)
+    except Exception:
+        # Keep startup logging best-effort.
+        pass
+
+    # Log offline data resolution early. This is critical for diagnosing macOS
+    # packaged builds where the UI can otherwise fail "silently" (empty station
+    # dropdowns, no routes found).
+    try:
+        from src.utils.data_path_resolver import get_data_directory
+
+        try:
+            data_dir = get_data_directory()
+            logger.info("Resolved offline data directory=%s", data_dir)
+            lines_dir = data_dir / "lines"
+            logger.info(
+                "Resolved offline lines directory=%s (exists=%s)",
+                lines_dir,
+                lines_dir.exists(),
+            )
+        except Exception as exc:
+            logger.exception("Failed to resolve offline data directory: %s", exc)
+    except Exception:
+        # Resolver import can fail in badly broken environments; ignore.
+        pass
 
 
 def _log_shutdown(logger, exit_code: int) -> None:

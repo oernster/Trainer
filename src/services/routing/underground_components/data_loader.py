@@ -82,24 +82,30 @@ class UndergroundDataLoader:
     def _load_system_data(self, filename: str, system_name: str) -> Optional[Dict]:
         """Load data for a specific underground system."""
         try:
-            # Try multiple possible paths
-            possible_paths = [
-                Path(f"data/{filename}"),  # From src directory
-                Path(f"src/data/{filename}"),  # From project root
-                Path(__file__).parent.parent.parent.parent / "data" / filename,  # Relative to this file
-            ]
-            
-            system_file = None
-            for path in possible_paths:
-                if path.exists():
-                    system_file = path
-                    break
-            
-            if not system_file:
+            # Prefer the central resolver, which supports development + packaged
+            # environments (including Nuitka app bundles).
+            try:
+                from ....utils.data_path_resolver import get_data_file_path
+
+                system_file = get_data_file_path(filename)
+            except Exception:
+                system_file = None
+
+            # Fallbacks for legacy layouts.
+            if system_file is None or not system_file.exists():
+                possible_paths = [
+                    Path(f"data/{filename}"),
+                    Path(f"src/data/{filename}"),
+                    Path(__file__).parent.parent.parent.parent / "data" / filename,
+                ]
+
+                system_file = next((p for p in possible_paths if p.exists()), None)
+
+            if not system_file or not Path(system_file).exists():
                 self.logger.warning(f"{system_name} stations file not found: {filename}")
                 return None
-            
-            with open(system_file, 'r', encoding='utf-8') as f:
+
+            with open(Path(system_file), "r", encoding="utf-8") as f:
                 data = json.load(f)
             
             stations = data.get('stations', [])
@@ -137,24 +143,29 @@ class UndergroundDataLoader:
     def _load_cross_country_data(self) -> Dict:
         """Load cross-country line data from JSON file."""
         try:
-            # Try multiple possible paths
-            possible_paths = [
-                Path(f"data/lines/cross_country_line.json"),  # From src directory
-                Path(f"src/data/lines/cross_country_line.json"),  # From project root
-                Path(__file__).parent.parent.parent.parent / "data" / "lines" / "cross_country_line.json",  # Relative to this file
-            ]
-            
-            cross_country_file = None
-            for path in possible_paths:
-                if path.exists():
-                    cross_country_file = path
-                    break
-            
-            if not cross_country_file:
+            try:
+                from ....utils.data_path_resolver import get_line_file_path
+
+                cross_country_file = get_line_file_path("cross_country_line.json")
+            except Exception:
+                cross_country_file = None
+
+            if not cross_country_file or not Path(cross_country_file).exists():
+                possible_paths = [
+                    Path("data/lines/cross_country_line.json"),
+                    Path("src/data/lines/cross_country_line.json"),
+                    Path(__file__).parent.parent.parent.parent
+                    / "data"
+                    / "lines"
+                    / "cross_country_line.json",
+                ]
+                cross_country_file = next((p for p in possible_paths if p.exists()), None)
+
+            if not cross_country_file or not Path(cross_country_file).exists():
                 self.logger.warning(f"Cross-country line file not found")
                 return {}
             
-            with open(cross_country_file, 'r', encoding='utf-8') as f:
+            with open(Path(cross_country_file), "r", encoding="utf-8") as f:
                 data = json.load(f)
             
             return data
@@ -166,24 +177,28 @@ class UndergroundDataLoader:
     def _load_interchange_connections_data(self) -> Dict:
         """Load interchange connections data from JSON file."""
         try:
-            # Try multiple possible paths
-            possible_paths = [
-                Path(f"data/interchange_connections.json"),  # From src directory
-                Path(f"src/data/interchange_connections.json"),  # From project root
-                Path(__file__).parent.parent.parent.parent / "data" / "interchange_connections.json",  # Relative to this file
-            ]
-            
-            interchange_file = None
-            for path in possible_paths:
-                if path.exists():
-                    interchange_file = path
-                    break
-            
-            if not interchange_file:
+            try:
+                from ....utils.data_path_resolver import get_data_file_path
+
+                interchange_file = get_data_file_path("interchange_connections.json")
+            except Exception:
+                interchange_file = None
+
+            if not interchange_file or not Path(interchange_file).exists():
+                possible_paths = [
+                    Path("data/interchange_connections.json"),
+                    Path("src/data/interchange_connections.json"),
+                    Path(__file__).parent.parent.parent.parent
+                    / "data"
+                    / "interchange_connections.json",
+                ]
+                interchange_file = next((p for p in possible_paths if p.exists()), None)
+
+            if not interchange_file or not Path(interchange_file).exists():
                 self.logger.warning(f"Interchange connections file not found")
                 return {}
             
-            with open(interchange_file, 'r', encoding='utf-8') as f:
+            with open(Path(interchange_file), "r", encoding="utf-8") as f:
                 data = json.load(f)
             
             return data

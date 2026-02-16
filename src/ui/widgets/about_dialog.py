@@ -69,7 +69,10 @@ class AboutDialog(QDialog):
         self._config_label = QLabel(self)
         self._config_label.setWordWrap(True)
         self._config_label.setTextFormat(Qt.TextFormat.PlainText)
-        self._config_label.setStyleSheet("QLabel { color: palette(mid); }")
+        # Avoid palette roles here: the application uses theme stylesheets that
+        # can indirectly force palette roles to poor-contrast values in dialogs.
+        # A neutral mid-gray remains readable on both dark and light backgrounds.
+        self._config_label.setStyleSheet("QLabel { color: #888888; }")
         self._config_label.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
             | Qt.TextInteractionFlag.TextSelectableByKeyboard

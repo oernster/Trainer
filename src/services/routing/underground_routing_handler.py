@@ -52,6 +52,42 @@ class UndergroundRoutingHandler:
             self.station_classifier,
             data_repository
         )
+
+    # ---------------------------------------------------------------------
+    # Compatibility helpers
+    #
+    # `UndergroundRoutePlanner` historically called underscored methods on the
+    # handler. The estimator methods live on `JourneyEstimator`. Provide these
+    # delegations so planner code paths work (and don't trigger fallback routing).
+    # ---------------------------------------------------------------------
+
+    def _estimate_underground_distance(
+        self,
+        from_station: str,
+        to_station: str,
+        system_key: str = "london",
+    ) -> float:
+        """Delegate to [`python.JourneyEstimator.estimate_underground_distance()`](src/services/routing/underground_components/journey_estimator.py:18)."""
+
+        return self.journey_estimator.estimate_underground_distance(
+            from_station,
+            to_station,
+            system_key,
+        )
+
+    def _estimate_underground_time(
+        self,
+        from_station: str,
+        to_station: str,
+        system_key: str = "london",
+    ) -> int:
+        """Delegate to [`python.JourneyEstimator.estimate_underground_time()`](src/services/routing/underground_components/journey_estimator.py:82)."""
+
+        return self.journey_estimator.estimate_underground_time(
+            from_station,
+            to_station,
+            system_key,
+        )
     
     # Station classification methods
     

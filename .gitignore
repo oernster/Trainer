@@ -1,4 +1,10 @@
 trainer.flatpak
+dist_macos_arm64/
+staging_dmg
+staging_macos_arm64
+temp_dmg
+trainer-macos-arm64.dmg
+.DS_Store
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

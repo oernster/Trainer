@@ -60,6 +60,10 @@ class TrainManager(QObject):
         *,
         station_service: Optional[IStationService] = None,
         route_service: Optional[IRouteService] = None,
+        route_calculation_service: RouteCalculationService,
+        train_data_service: TrainDataService,
+        configuration_service: ConfigurationService,
+        timetable_service: TimetableService,
     ):
         """
         Initialize refactored train manager.
@@ -84,34 +88,15 @@ class TrainManager(QObject):
         self.to_station: Optional[str] = None
         # Note: route_path removed - UI should get route data directly from RouteService
         
-        # Initialize services (bootstrap owns composition; no internal construction).
-        self._initialize_services(
-            config,
-            station_service=station_service,
-            route_service=route_service,
-        )
+        # Phase 2 boundary: injected dependencies (no internal construction).
+        self.route_calculation_service = route_calculation_service
+        self.train_data_service = train_data_service
+        self.configuration_service = configuration_service
+        self.timetable_service = timetable_service
         
         # Note: No longer loading route_path from config - UI gets route data from RouteService
         
         logger.info("Refactored TrainManager initialized with service-oriented architecture")
-
-    def _initialize_services(
-        self,
-        config: ConfigData,
-        *,
-        station_service: Optional[IStationService],
-        route_service: Optional[IRouteService],
-    ) -> None:
-        """Initialize all services.
-
-        Phase 2 boundary: TrainManager must not construct routing services.
-        """
-
-        # Initialize service layer
-        self.route_calculation_service = RouteCalculationService(route_service, station_service)
-        self.train_data_service = TrainDataService(config)
-        self.configuration_service = ConfigurationService(config, self.__class__.config_manager)
-        self.timetable_service = TimetableService()
 
     # Note: _load_route_from_config removed - UI gets route data directly from RouteService
 

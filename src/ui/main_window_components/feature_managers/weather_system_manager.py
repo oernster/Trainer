@@ -36,6 +36,8 @@ class WeatherSystemManager(QObject):
         """
         super().__init__(parent)
         self.config_manager = config_manager
+        # Optional back-reference for injected composition; set by the UI layer.
+        self.main_window = None
         self.config = None
         self.weather_manager = None
         self.weather_widget = None
@@ -65,9 +67,21 @@ class WeatherSystemManager(QObject):
             return False
 
         try:
-            # Initialize weather manager (even if disabled, for potential later enabling)
-            from ....managers.weather_manager import WeatherManager
-            self.weather_manager = WeatherManager(self.config.weather)
+            # Phase 2 boundary: composition happens in bootstrap.
+            # WeatherSystemManager only wires an injected WeatherManager.
+            self.weather_manager = getattr(self, "weather_manager", None) or getattr(
+                self, "_injected_weather_manager", None
+            )
+            if not self.weather_manager:
+                self.weather_manager = getattr(self, "main_window", None) and getattr(
+                    self.main_window, "weather_manager", None
+                )
+            if not self.weather_manager:
+                logger.warning(
+                    "Weather system setup requested but no WeatherManager was injected; skipping"
+                )
+                self._update_weather_status(False)
+                return False
 
             # Connect weather widget if it exists
             if self.weather_widget:

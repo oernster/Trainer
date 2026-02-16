@@ -361,21 +361,12 @@ class StationCacheManager:
             return False
 
 
-# Global cache manager instance
-_cache_manager: Optional[StationCacheManager] = None
+"""Phase 2 boundary note:
 
+This module intentionally does *not* expose a process-global singleton accessor.
 
-def get_station_cache_manager(cache_directory: Optional[str] = None) -> StationCacheManager:
-    """
-    Get the global station cache manager instance.
-    
-    Args:
-        cache_directory: Cache directory path (only used on first call)
-        
-    Returns:
-        The singleton StationCacheManager instance
-    """
-    global _cache_manager
-    if _cache_manager is None:
-        _cache_manager = StationCacheManager(cache_directory)
-    return _cache_manager
+Composition rule:
+  - Bootstrap is the only place allowed to assemble the object graph.
+  - Callers must receive a [`python.StationCacheManager`](src/cache/station_cache_manager.py:21)
+    instance via dependency injection.
+"""

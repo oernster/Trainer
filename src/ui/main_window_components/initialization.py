@@ -1,19 +1,22 @@
-"""Main window initialization helpers."""
+"""Main window initialization helpers.
+
+Phase 2 directive:
+  - This module may *wire* UI managers/widgets, but must not assemble the
+    application/service object graph.
+  - Construction of long-lived managers/services happens in
+    [`python.bootstrap_app()`](src/app/bootstrap.py:71).
+"""
 
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from PySide6.QtCore import QTimer, Qt
 
-from ...managers.astronomy_manager import AstronomyManager
 from ...managers.config_manager import ConfigManager
-from ...managers.config_models import ConfigurationError
+from ...managers.config_models import ConfigData
 from ...managers.initialization_manager import InitializationManager
 from ...managers.theme_manager import ThemeManager
-from ...managers.train_manager import TrainManager
-from ...managers.weather_manager import WeatherManager
 from ..managers import (
     EventHandlerManager,
     SettingsDialogManager,
@@ -24,8 +27,19 @@ from ..managers import (
 logger = logging.getLogger(__name__)
 
 
-def initialize_main_window(*, window, config_manager: Optional[ConfigManager] = None) -> None:
-    """Populate a MainWindow instance with its managers and initial state."""
+def initialize_main_window(
+    *,
+    window,
+    config_manager: ConfigManager,
+    config: ConfigData,
+    theme_manager: ThemeManager,
+    initialization_manager: InitializationManager,
+) -> None:
+    """Populate a MainWindow instance with its UI managers and initial state.
+
+    This function is intentionally *UI-only wiring*. It must not create
+    long-lived managers/services (Weather/Astronomy/Train/etc.).
+    """
 
     # Make window completely invisible during initialization
     window.setVisible(False)
@@ -39,23 +53,10 @@ def initialize_main_window(*, window, config_manager: Optional[ConfigManager] = 
     window.setWindowOpacity(0.0)  # Make completely transparent
     window.move(-10000, -10000)  # Move off-screen
 
-    # Initialize core managers
-    window.config_manager = config_manager or ConfigManager()
-    window.theme_manager = ThemeManager()
-
-    # Install default config to AppData on first run
-    window.config_manager.install_default_config_to_appdata()
-
-    # Load configuration
-    try:
-        window.config = window.config_manager.load_config()
-        # Set theme from config (defaults to dark)
-        window.theme_manager.set_theme(window.config.display.theme)
-    except ConfigurationError as exc:
-        logger.error("Configuration error: %s", exc)
-        window.show_error_message("Configuration Error", str(exc))
-        # Use default config
-        window.config = None
+    # Bootstrap owns configuration + theming.
+    window.config_manager = config_manager
+    window.config = config
+    window.theme_manager = theme_manager
 
     # Initialize UI manager classes
     window.ui_layout_manager = UILayoutManager(window)
@@ -74,11 +75,7 @@ def initialize_main_window(*, window, config_manager: Optional[ConfigManager] = 
         window.widget_lifecycle_manager,
     )
 
-    # External managers (will be set by main.py)
-    window.weather_manager: Optional[WeatherManager] = None
-    window.astronomy_manager: Optional[AstronomyManager] = None
-    window.initialization_manager: Optional[InitializationManager] = None
-    window.train_manager: Optional[TrainManager] = None
+    # Long-lived managers are injected by bootstrap; do not overwrite them.
 
     # Setup theme system first to ensure proper styling from the start
     window.setup_theme_system()
@@ -88,8 +85,8 @@ def initialize_main_window(*, window, config_manager: Optional[ConfigManager] = 
     window.ui_layout_manager.setup_ui()
     window.ui_layout_manager.setup_application_icon()
 
-    # Initialize the optimized initialization manager
-    window.initialization_manager = InitializationManager(window.config_manager, window)
+    # Initialization manager is injected by bootstrap.
+    window.initialization_manager = initialization_manager
 
     # Connect initialization signals
     window.initialization_manager.initialization_completed.connect(

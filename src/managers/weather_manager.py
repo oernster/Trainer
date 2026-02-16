@@ -19,7 +19,6 @@ from ..models.weather_data import WeatherForecastData, Location, WeatherData
 from ..managers.weather_config import WeatherConfig
 from ..api.weather_api_manager import (
     WeatherAPIManager,
-    WeatherAPIFactory,
     WeatherAPIException,
     WeatherNetworkException,
     WeatherDataException,
@@ -222,7 +221,7 @@ class WeatherManager(QObject, WeatherSubject):
     weather_error = Signal(str)  # Error message
     loading_state_changed = Signal(bool)  # Loading state
 
-    def __init__(self, config: WeatherConfig):
+    def __init__(self, config: WeatherConfig, *, api_manager: WeatherAPIManager):
         """
         Initialize weather manager.
 
@@ -233,7 +232,7 @@ class WeatherManager(QObject, WeatherSubject):
         WeatherSubject.__init__(self)
 
         self._config = config
-        self._api_manager = WeatherAPIFactory.create_manager_from_config(config)
+        self._api_manager = api_manager
         self._current_forecast: Optional[WeatherForecastData] = None
         self._error_handler = WeatherErrorHandler(logger)
 
@@ -432,8 +431,8 @@ class WeatherManager(QObject, WeatherSubject):
         old_interval = self._config.refresh_interval_minutes
         self._config = new_config
 
-        # Update API manager
-        self._api_manager = WeatherAPIFactory.create_manager_from_config(new_config)
+        # Phase 2 boundary: WeatherManager does not create a new API manager.
+        # The composition root must rebuild and inject one if needed.
 
         # Restart auto-refresh if interval changed
         if new_config.refresh_interval_minutes != old_interval:

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from src.cache.station_cache_manager import StationCacheManager, get_station_cache_manager
+from src.cache.station_cache_manager import StationCacheManager
 
 
 def test_station_cache_manager_init_defaults_to_module_dir(tmp_path: Path, monkeypatch):
@@ -113,12 +113,9 @@ def test_station_cache_manager_optimize_cache_no_data_returns_false(tmp_path: Pa
     assert any("No cached data to optimize" in r.message for r in caplog.records)
 
 
-def test_get_station_cache_manager_singleton(tmp_path: Path, monkeypatch):
-    # Reset module global singleton.
-    import src.cache.station_cache_manager as mod
-
-    monkeypatch.setattr(mod, "_cache_manager", None)
-    m1 = get_station_cache_manager(cache_directory=str(tmp_path))
-    m2 = get_station_cache_manager(cache_directory=str(tmp_path / "other"))
-    assert m1 is m2
+def test_station_cache_manager_is_constructible_multiple_times(tmp_path: Path):
+    # Phase 2 boundary: no module-level singleton accessors; composition root owns lifetime.
+    m1 = StationCacheManager(cache_directory=str(tmp_path))
+    m2 = StationCacheManager(cache_directory=str(tmp_path / "other"))
+    assert m1 is not m2
 

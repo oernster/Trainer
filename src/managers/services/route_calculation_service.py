@@ -20,8 +20,13 @@ logger = logging.getLogger(__name__)
 class RouteCalculationService:
     """Service for calculating and validating train routes."""
 
-    def __init__(self, route_service: Optional[IRouteService] = None, 
-                 station_service: Optional[IStationService] = None):
+    def __init__(
+        self,
+        route_service: Optional[IRouteService] = None,
+        station_service: Optional[IStationService] = None,
+        *,
+        simple_route_finder=None,
+    ):
         """
         Initialize route calculation service.
 
@@ -31,6 +36,9 @@ class RouteCalculationService:
         """
         self.route_service = route_service
         self.station_service = station_service
+
+        # Phase 2 boundary: fallback routing helper must be injected.
+        self._simple_route_finder = simple_route_finder
         
         # Cache for line data to prevent repeated loading
         self._line_data_cache: Optional[Dict[str, Dict]] = None
@@ -76,10 +84,12 @@ class RouteCalculationService:
         return self._calculate_fallback_route(from_station, to_station, preferences)
 
     def _calculate_fallback_route(self, from_station: str, to_station: str,
-                                 preferences: Optional[Dict] = None) -> Optional[object]:
+                                  preferences: Optional[Dict] = None) -> Optional[object]:
         """Calculate route using fallback simple route finder."""
         try:
-            from ...managers.simple_route_finder import simple_finder
+            simple_finder = self._simple_route_finder
+            if simple_finder is None:
+                raise RuntimeError("SimpleRouteFinder is not injected")
             
             # Ensure simple finder is loaded
             if not simple_finder.loaded:

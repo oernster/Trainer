@@ -206,5 +206,5 @@ class SimpleRouteFinder:
         
         return None
 
-# Global instance
-simple_finder = SimpleRouteFinder()
+# Phase 2 boundary: no module-level instances.
+# Callers must construct and inject `SimpleRouteFinder` explicitly.

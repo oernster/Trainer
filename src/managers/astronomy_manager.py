@@ -54,7 +54,7 @@ class AstronomyManager(QObject):
     loading_state_changed = Signal(bool)
     cache_status_changed = Signal(dict)
 
-    def __init__(self, config: AstronomyConfig):
+    def __init__(self, config: AstronomyConfig, *, moon_phase_service: HybridMoonPhaseService):
         """
         Initialize astronomy manager.
 
@@ -68,8 +68,8 @@ class AstronomyManager(QObject):
         self._current_forecast: Optional[AstronomyForecastData] = None
         self._is_loading = False
 
-        # Initialize hybrid moon phase service for accurate calculations
-        self._moon_phase_service = HybridMoonPhaseService()
+        # Phase 2 boundary: injected dependency (no internal construction)
+        self._moon_phase_service = moon_phase_service
 
         # Auto-refresh timer
         self._refresh_timer = QTimer()

@@ -130,6 +130,23 @@ class TrainManager(QObject):
     def fetch_trains(self) -> None:
         """Fetch train data asynchronously using queue mechanism."""
         try:
+            # Fast-path: if there is no valid station configuration, emit the
+            # empty result immediately from the main thread.
+            #
+            # Reason: On fresh installs / after config resets, startup may call
+            # `fetch_trains()` before the main Qt event loop is fully running.
+            # Emitting the empty result from a background thread can delay or
+            # miss the signal delivery and leave the splash screen visible.
+            try:
+                if not self.configuration_service.has_valid_station_config():
+                    logger.debug("No valid station configuration - emitting empty results synchronously")
+                    self._emit_empty_results()
+                    return
+            except Exception as e:
+                # Never fail startup because of a pre-check; fall back to the
+                # async path which will surface errors via `error_occurred`.
+                logger.debug(f"Station config pre-check failed; continuing with async fetch: {e}")
+
             # Add fetch request to queue (only keeps most recent due to maxlen=1)
             with self._queue_lock:
                 fetch_request = (self.from_station, self.to_station, datetime.now())

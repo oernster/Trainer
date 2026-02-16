@@ -56,6 +56,15 @@ class TrainDataService:
 
             logger.info(f"Generating trains for route: {from_station} -> {to_station}")
 
+            # Keep synthetic generation deterministic for a given route and
+            # departure time bucket. This prevents F5 refresh from "randomly"
+            # changing train times in offline/synthetic mode.
+            rng = self._build_deterministic_rng(
+                from_station=from_station,
+                to_station=to_station,
+                departure_time=departure_time,
+            )
+
             # Get time window from config
             time_window_hours = self._get_time_window_hours()
             
@@ -77,7 +86,7 @@ class TrainDataService:
                     train_count += 1
                 
                 # Next train at standard intervals (10-20 minutes)
-                interval_minutes = random.randint(10, 20)
+                interval_minutes = rng.randint(10, 20)
                 current_time += timedelta(minutes=interval_minutes)
 
             logger.info(f"Generated {len(trains)} realistic trains")
@@ -85,6 +94,23 @@ class TrainDataService:
             
         except Exception as e:
             raise
+
+    @staticmethod
+    def _build_deterministic_rng(*, from_station: str, to_station: str, departure_time: datetime) -> random.Random:
+        """Build a deterministic RNG for synthetic train generation.
+
+        Seed choice:
+        - Stable within the same minute (so manual refresh doesn't reshuffle),
+        - Changes over time (so the list naturally evolves).
+        """
+
+        minute_bucket = departure_time.replace(second=0, microsecond=0)
+        seed_material = f"{from_station}|{to_station}|{minute_bucket.isoformat()}"
+        # Use a stable hash across processes (avoid Python's randomized hash())
+        seed = 0
+        for ch in seed_material:
+            seed = (seed * 31 + ord(ch)) & 0xFFFFFFFF
+        return random.Random(seed)
 
     def _create_train_from_route(self, route_result, from_station: str, to_station: str,
                                 departure_time: datetime, train_index: int) -> Optional[TrainData]:

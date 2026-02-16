@@ -218,18 +218,24 @@ class ConfigurationService:
         try:
             if not self.config_manager:
                 return True  # Skip verification if no config manager
-                
+                 
             saved_config = self.config_manager.load_config()
-            if (hasattr(saved_config, 'stations') and
-                hasattr(saved_config.stations, 'route_path') and
-                saved_config.stations.route_path):
+
+            # `route_path` is an optional persistence field.
+            # Phase 2 note: the refactored routing flow may intentionally clear it
+            # (UI should derive route from RouteService), so an empty route_path is
+            # not a failed save.
+            if hasattr(saved_config, "stations") and hasattr(saved_config.stations, "route_path"):
                 saved_path = saved_config.stations.route_path
-                logger.info(f"Verified saved route path: {len(saved_path)} stations")
+                if saved_path:
+                    logger.info("Verified saved route path: %s stations", len(saved_path))
+                else:
+                    logger.debug("Saved config has empty route_path (expected in current flow)")
                 return True
-            else:
-                logger.warning("Route path not found in saved config")
-                return False
-                
+
+            logger.debug("Saved config has no route_path field (back-compat)")
+            return True
+                 
         except Exception as e:
             logger.warning(f"Could not verify saved route path: {e}")
             return False

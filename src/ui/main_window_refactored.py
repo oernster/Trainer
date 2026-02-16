@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
 )
 from PySide6.QtCore import QTimer, Signal, Qt
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtGui import QCloseEvent, QKeyEvent
 from ..models.train_data import TrainData
 from ..managers.train_manager import TrainManager
 from ..managers.config_manager import ConfigManager
@@ -390,6 +390,18 @@ class MainWindow(QMainWindow):
         super().resizeEvent(event)
         # Delegate to UI layout manager
         self.ui_layout_manager.handle_resize_event(event)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802 (Qt override)
+        """Delegate keyboard shortcuts (e.g. F5/Ctrl+R) to EventHandlerManager."""
+
+        try:
+            mgr = getattr(self, "event_handler_manager", None)
+            if mgr is not None and mgr.handle_keyboard_shortcuts(event):
+                return
+        except Exception:  # pragma: no cover
+            pass
+
+        super().keyPressEvent(event)
 
     def closeEvent(self, event: QCloseEvent):
         """Handle window close event."""

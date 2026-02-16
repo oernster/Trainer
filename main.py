@@ -413,6 +413,20 @@ def main():
             def on_widgets_ready():
                 splash.show_message("Loading train data...")
                 app.processEvents()
+
+                # ------------------------------------------------------------------
+                # Weather refresh: fetch immediately after widget wiring
+                # ------------------------------------------------------------------
+                # Regression fix: the refactor removed the one-shot weather fetch from
+                # InitializationManager, and WeatherManager's auto-refresh interval is
+                # 30 minutes. Trigger an immediate refresh so the Weather panel
+                # populates on first run.
+                try:
+                    if hasattr(window, "refresh_weather"):
+                        window.refresh_weather()
+                except Exception as exc:
+                    logger.debug("Initial weather refresh failed: %s", exc)
+
                 # Single train data fetch after widgets are ready
                 train_manager.fetch_trains()
 
@@ -440,6 +454,14 @@ def main():
             else:
                 # Fallback if initialization manager not available - still use signals
                 def fallback_startup():
+                    # Mirror the initialization-complete path: attempt weather refresh
+                    # before fetching trains.
+                    try:
+                        if hasattr(window, "refresh_weather"):
+                            window.refresh_weather()
+                    except Exception as exc:
+                        logger.debug("Initial weather refresh (fallback) failed: %s", exc)
+
                     train_manager.fetch_trains()
                     # Connect to train data signal for fallback too
                     def on_fallback_train_data():

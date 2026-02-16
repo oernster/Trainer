@@ -20,7 +20,9 @@ Trainer is a desktop application (PySide6/Qt) that:
 
 ### 1) UI layer (`src/ui/**`)
 
-Everything Qt lives here (windows, dialogs, widgets). The main window implementation is [`python.MainWindow`](src/ui/main_window_refactored.py:69).
+Everything Qt lives here (windows, dialogs, widgets).
+
+The **import target** for the main window is the compatibility shim [`src/ui/main_window.py`](src/ui/main_window.py:1), which re-exports the active implementation [`python.MainWindow`](src/ui/main_window_refactored.py:69).
 
 The UI is intentionally split into “UI managers” that own specific responsibilities:
 
@@ -77,6 +79,25 @@ Qt imports are intended to be UI-only, with a narrow allowlist enforced by [`tes
   3. Wire/initialize widgets
   4. Trigger initial refresh (notably a one-shot `window.refresh_weather()` to avoid waiting for the 30-minute timer)
   5. Fetch trains
+
+Notes:
+
+- Weather refresh can happen in two places depending on configuration:
+  - UI wiring will request a refresh when weather is enabled (see [`python.WidgetLifecycleManager.setup_weather_system()`](src/ui/managers/widget_lifecycle_manager.py:44)).
+  - Startup also triggers a one-shot refresh after widget wiring (see [`main.main()`](main.py:376)).
+
+---
+
+## macOS development notes (no packaging)
+
+These notes are for **running from source** on macOS (clone repo + run Python).
+
+- Logs:
+  - macOS logs go to `~/Library/Logs/Trainer/train_times.log` (see [`main.setup_logging()`](main.py:218)).
+- Single-instance behavior:
+  - An ultra-early lock file is created in the platform temp directory to prevent multiple launches (see [`main.check_single_instance_ultra_early()`](main.py:56)).
+- Platform-specific UI tweaks:
+  - A small number of spacing/sizing adjustments exist for macOS (see [`src/ui/components/station_selection_widget.py`](src/ui/components/station_selection_widget.py:1) and [`src/ui/components/route_details_widget.py`](src/ui/components/route_details_widget.py:1)).
 
 ### Manual refresh (F5 / Ctrl+R)
 

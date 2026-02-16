@@ -83,7 +83,7 @@ The adapter layer translates HTTP responses into internal model objects (`Weathe
 
 - Weather refresh uses a command object: [`python.RefreshWeatherCommand`](src/managers/weather_manager.py:130)
 
-This isolates the “action” (refresh weather) from how/when it is executed and allows for command history (`undo_last_command`).
+This isolates the “action” (refresh weather) from how/when it is executed and enables a small command history with an undo operation (see [`python.WeatherManager.undo_last_command()`](src/managers/weather_manager.py:305)).
 
 ---
 

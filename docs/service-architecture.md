@@ -30,6 +30,10 @@ The central coordinator for trains is [`python.TrainManager`](src/managers/train
 - emits signals consumed by the UI
 - delegates the actual work to injected services
 
+Behavior notes:
+
+- Route changes are persisted, but do not automatically trigger a fetch: the UI owns refresh timing to avoid overload during rapid route switching (see [`python.TrainManager.set_route()`](src/managers/train_manager.py:111)).
+
 ### Train services (injected into TrainManager)
 
 These live under `src/managers/services/**` and are assembled by bootstrap.
@@ -56,6 +60,10 @@ Key behaviour note:
 - emitting signals: updated/error/loading
 
 It delegates I/O and parsing to the API adapter layer.
+
+Implementation note:
+
+- Manual refresh uses a Command object (`RefreshWeatherCommand`) which stores prior state for undo (see [`python.RefreshWeatherCommand`](src/managers/weather_manager.py:130) and [`python.WeatherManager.undo_last_command()`](src/managers/weather_manager.py:305)).
 
 ### Adapter: WeatherAPIManager + Open-Meteo source
 

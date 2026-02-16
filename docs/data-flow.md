@@ -40,7 +40,9 @@ Startup sequencing is anchored in [`main.py`](main.py:1): config load → compos
 
 Notable behaviour:
 
-- A one-shot weather refresh is triggered after widgets are wired to avoid waiting for the 30-minute weather timer (see callbacks in [`main.py`](main.py:1)).
+- Weather refresh can be triggered immediately after widget wiring so the Weather panel populates on first run instead of waiting for the periodic refresh.
+  - Widget wiring requests an initial refresh when weather is enabled (see [`python.WidgetLifecycleManager.setup_weather_system()`](src/ui/managers/widget_lifecycle_manager.py:44)).
+  - Startup also triggers a one-shot refresh after widgets are ready (see [`main.main()`](main.py:376)).
 
 ---
 

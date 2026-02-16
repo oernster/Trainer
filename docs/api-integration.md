@@ -56,6 +56,8 @@ Orchestrated by:
 
 - [`python.AstronomyManager`](src/managers/astronomy_manager.py:1)
 
+Note: `AstronomyManager` is composed by the application bootstrap in [`python.bootstrap_app()`](src/app/bootstrap.py:80); helpers/factories in `src/managers/*_factory.py` are intentionally restricted by Phase-2 policy.
+
 ---
 
 ## Trains

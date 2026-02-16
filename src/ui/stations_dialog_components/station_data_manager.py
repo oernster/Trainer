@@ -77,9 +77,8 @@ class StationDataManager:
     def setup_optimized_loading(self):
         """Set up the optimized station data loading system."""
         try:
-            # Initialize cache manager
-            from src.cache.station_cache_manager import get_station_cache_manager
-            self.dialog.cache_manager = get_station_cache_manager()
+            # Phase 2 boundary: cache manager is injected by bootstrap.
+            self.dialog.cache_manager = getattr(self.dialog, "_station_cache_manager", None)
             
             # Initialize station data manager
             from src.ui.workers.station_data_worker import StationDataManager as WorkerManager
@@ -220,8 +219,11 @@ class StationDataManager:
         """Populate combo boxes with essential stations immediately for instant interaction."""
         try:
             # Load essential stations (this is very fast - <0.001s)
-            from src.services.routing.essential_station_cache import get_essential_stations
-            essential_stations = get_essential_stations()
+            essential_stations = (
+                self.dialog._essential_station_cache.get_all_essential_stations()
+                if getattr(self.dialog, "_essential_station_cache", None)
+                else []
+            )
             
             if essential_stations and self.dialog.station_selection_widget:
                 # Populate the combo boxes immediately
@@ -292,8 +294,11 @@ class StationDataManager:
                 return
             
             # Start background loading for complete dataset (non-blocking)
-            self.dialog.station_data_manager.start_loading(self.dialog.station_service,
-                                                   getattr(self.dialog.station_service, 'data_repository', None))
+            self.dialog.station_data_manager.start_loading(
+                self.dialog.station_service,
+                getattr(self.dialog.station_service, "data_repository", None),
+                essential_station_cache=getattr(self.dialog, "_essential_station_cache", None),
+            )
             
             logger.info("Background station loading started (deferred)")
             

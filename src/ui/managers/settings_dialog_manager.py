@@ -83,6 +83,8 @@ class SettingsDialogManager(QObject):
                 theme_manager=theme_manager,
                 station_service=station_service,
                 route_service=route_service,
+                essential_station_cache=getattr(self.main_window, "essential_station_cache", None),
+                station_cache_manager=getattr(self.main_window, "station_cache_manager", None),
             )
             self._open_dialogs['stations_settings'] = dialog
 

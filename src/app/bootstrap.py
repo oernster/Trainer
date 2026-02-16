@@ -20,6 +20,22 @@ from src.managers.train_manager import TrainManager
 from src.ui.main_window import MainWindow
 
 from src.services.routing.composition import build_routing_services
+from src.services.routing.essential_station_cache import EssentialStationCache
+from src.cache.station_cache_manager import StationCacheManager
+from src.services.moon_phase_service import HybridMoonPhaseService
+from src.managers.services.route_calculation_service import RouteCalculationService
+from src.managers.services.train_data_service import TrainDataService
+from src.managers.services.configuration_service import ConfigurationService
+from src.managers.services.timetable_service import TimetableService
+
+from src.managers.initialization_manager import InitializationManager
+from src.managers.theme_manager import ThemeManager
+from src.managers.weather_manager import WeatherManager
+from src.managers.astronomy_manager import AstronomyManager
+
+from src.api.weather_api_manager import AioHttpClient, OpenMeteoWeatherSource, WeatherAPIManager
+
+from src.managers.simple_route_finder import SimpleRouteFinder
 
 logger = logging.getLogger(__name__)
 
@@ -79,13 +95,91 @@ def bootstrap_app(*, config_manager: ConfigManager, config: ConfigData) -> Appli
 
     window = MainWindow(config_manager)
 
+    # Phase 2 boundary: bootstrap owns UI initialization wiring too.
+    theme_manager = ThemeManager()
+    try:
+        theme_manager.set_theme(config.display.theme)
+    except Exception as exc:  # pragma: no cover
+        logger.debug("Failed to apply theme from config during bootstrap: %s", exc)
+
+    initialization_manager = InitializationManager(config_manager, window)
+
+    # Populate the window with its UI managers and initial state.
+    # This is *UI wiring only* (no service composition).
+    from src.ui.main_window_components.initialization import initialize_main_window
+
+    initialize_main_window(
+        window=window,
+        config_manager=config_manager,
+        config=config,
+        theme_manager=theme_manager,
+        initialization_manager=initialization_manager,
+    )
+
+    # ------------------------------------------------------------------
+    # Feature managers/services (bootstrap-owned composition)
+    # ------------------------------------------------------------------
+    # Weather
+    try:
+        weather_config = getattr(config, "weather", None)
+        if weather_config is not None and getattr(weather_config, "enabled", False):
+            http_client = AioHttpClient(timeout_seconds=weather_config.timeout_seconds)
+            weather_source = OpenMeteoWeatherSource(http_client, weather_config)
+            weather_api_manager = WeatherAPIManager(weather_source, weather_config)
+            window.weather_manager = WeatherManager(weather_config, api_manager=weather_api_manager)
+        else:
+            window.weather_manager = None
+    except Exception as exc:  # pragma: no cover
+        logger.debug("Failed to bootstrap WeatherManager: %s", exc)
+        window.weather_manager = None
+
+    # Astronomy
+    try:
+        astronomy_config = getattr(config, "astronomy", None)
+        if astronomy_config is not None and getattr(astronomy_config, "enabled", False):
+            moon_phase_service = HybridMoonPhaseService()
+            window.astronomy_manager = AstronomyManager(
+                astronomy_config,
+                moon_phase_service=moon_phase_service,
+            )
+        else:
+            window.astronomy_manager = None
+    except Exception as exc:  # pragma: no cover
+        logger.debug("Failed to bootstrap AstronomyManager: %s", exc)
+        window.astronomy_manager = None
+
+    # Phase 2 boundary: construct UI-adjacent cache/services explicitly here.
+    # These are injected into dialogs/workers via MainWindow attributes.
+    window.essential_station_cache = EssentialStationCache()
+    window.station_cache_manager = StationCacheManager()
+
     # Composition root: assemble routing services once and inject.
     routing = build_routing_services()
+
+    # Phase 2 boundary: assemble *all* services explicitly here.
+    simple_route_finder = SimpleRouteFinder()
+    try:
+        simple_route_finder.load_data()
+    except Exception as exc:  # pragma: no cover
+        logger.debug("Failed to pre-load SimpleRouteFinder: %s", exc)
+
+    route_calc = RouteCalculationService(
+        routing.route_service,
+        routing.station_service,
+        simple_route_finder=simple_route_finder,
+    )
+    train_data = TrainDataService(config)
+    configuration = ConfigurationService(config, config_manager)
+    timetable = TimetableService()
 
     train_manager = TrainManager(
         config,
         station_service=routing.station_service,
         route_service=routing.route_service,
+        route_calculation_service=route_calc,
+        train_data_service=train_data,
+        configuration_service=configuration,
+        timetable_service=timetable,
     )
 
     # External managers (expected by UI layer) - set explicitly.
@@ -95,12 +189,8 @@ def bootstrap_app(*, config_manager: ConfigManager, config: ConfigData) -> Appli
     _attach_train_manager_to_train_list_widget(window=window, train_manager=train_manager)
     _connect_ui_signals(window=window, train_manager=train_manager)
 
-    return ApplicationContainer(
-        config_manager=config_manager,
-        config=config,
-        window=window,
-        train_manager=train_manager,
-    )
+    # Use positional args to keep static analyzers happy across Python versions.
+    return ApplicationContainer(config_manager, config, window, train_manager)
 
 
 def _apply_initial_route_from_config(*, train_manager: TrainManager, config: ConfigData) -> None:

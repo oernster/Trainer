@@ -7,7 +7,7 @@ instant population of station selection widgets without waiting for full data lo
 """
 
 import logging
-from typing import List, Set, Dict, Any, Optional
+from typing import List, Set, Dict, Any
 from pathlib import Path
 import json
 import time
@@ -247,42 +247,13 @@ class EssentialStationCache:
         }
 
 
-# Global instance for singleton access
-_essential_cache: Optional[EssentialStationCache] = None
+"""Phase 2 boundary note:
 
+This module intentionally does *not* expose module-level singleton instances or
+`get_*` accessors.
 
-def get_essential_station_cache() -> EssentialStationCache:
-    """
-    Get the global essential station cache instance.
-    
-    Returns:
-        The singleton EssentialStationCache instance
-    """
-    global _essential_cache
-    if _essential_cache is None:
-        _essential_cache = EssentialStationCache()
-    return _essential_cache
-
-
-def get_essential_stations() -> List[str]:
-    """
-    Quick access function to get all essential stations.
-    
-    Returns:
-        List of all essential station names
-    """
-    return get_essential_station_cache().get_all_essential_stations()
-
-
-def get_essential_station_suggestions(partial: str, limit: int = 10) -> List[str]:
-    """
-    Quick access function to get station suggestions from essential stations.
-    
-    Args:
-        partial: Partial station name to match
-        limit: Maximum number of suggestions to return
-        
-    Returns:
-        List of matching station names
-    """
-    return get_essential_station_cache().get_station_suggestions(partial, limit)
+Composition rule:
+  - Bootstrap is the only place allowed to assemble the object graph.
+  - Callers must receive a [`python.EssentialStationCache`](src/services/routing/essential_station_cache.py:18)
+    instance via dependency injection.
+"""

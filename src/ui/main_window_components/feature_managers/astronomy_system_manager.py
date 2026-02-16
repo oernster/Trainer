@@ -37,6 +37,8 @@ class AstronomySystemManager(QObject):
         """
         super().__init__(parent)
         self.config_manager = config_manager
+        # Optional back-reference for injected composition; set by the UI layer.
+        self.main_window = None
         self.config = None
         self.astronomy_manager = None
         self.astronomy_widget = None
@@ -92,9 +94,17 @@ class AstronomySystemManager(QObject):
 
             # Only initialize astronomy manager if astronomy is enabled
             if self.config.astronomy.enabled:
-                # Initialize astronomy manager
-                from ....managers.astronomy_manager import AstronomyManager
-                self.astronomy_manager = AstronomyManager(self.config.astronomy)
+                # Phase 2 boundary: composition happens in bootstrap.
+                # AstronomySystemManager only wires an injected AstronomyManager.
+                if not self.astronomy_manager:
+                    self.astronomy_manager = getattr(self.main_window, "astronomy_manager", None)
+
+                if not self.astronomy_manager:
+                    logger.warning(
+                        "Astronomy system setup requested but no AstronomyManager was injected; skipping"
+                    )
+                    self._update_astronomy_status(False)
+                    return False
 
                 # Connect astronomy manager Qt signals to astronomy widget
                 self.astronomy_manager.astronomy_updated.connect(

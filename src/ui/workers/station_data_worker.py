@@ -159,7 +159,12 @@ class FastStationDataWorker(QThread):
     essential_data_loaded = Signal(list)  # essential stations
     loading_failed = Signal(str)  # error message
     
-    def __init__(self, parent: Optional[QObject] = None):
+    def __init__(
+        self,
+        *,
+        essential_station_cache,
+        parent: Optional[QObject] = None,
+    ):
         """
         Initialize the fast station data worker.
         
@@ -169,6 +174,7 @@ class FastStationDataWorker(QThread):
         super().__init__(parent)
         self.logger = logging.getLogger(__name__)
         self._should_stop = False
+        self._essential_station_cache = essential_station_cache
     
     def stop_loading(self):
         """Request the worker to stop loading data."""
@@ -180,14 +186,15 @@ class FastStationDataWorker(QThread):
             self.logger.info("Starting fast essential station data loading")
             start_time = time.time()
             
-            # Import here to avoid circular imports
-            from ...services.routing.essential_station_cache import get_essential_stations
-            
             if self._should_stop:
                 return
             
             # Load essential stations (this should be very fast)
-            essential_stations = get_essential_stations()
+            essential_stations = (
+                self._essential_station_cache.get_all_essential_stations()
+                if self._essential_station_cache
+                else []
+            )
             
             load_time = time.time() - start_time
             self.logger.info(f"Fast station data loading completed in {load_time:.3f}s")
@@ -236,7 +243,13 @@ class StationDataManager(QObject):
         self._underground_stations: List[str] = []
         self._is_loading = False
     
-    def start_loading(self, station_service=None, data_repository=None):
+    def start_loading(
+        self,
+        station_service=None,
+        data_repository=None,
+        *,
+        essential_station_cache=None,
+    ):
         """
         Start the coordinated station data loading process.
         
@@ -252,7 +265,7 @@ class StationDataManager(QObject):
         self.logger.info("Starting coordinated station data loading")
         
         # Start fast loading first for immediate UI responsiveness
-        self._start_fast_loading()
+        self._start_fast_loading(essential_station_cache=essential_station_cache)
         
         # Start full loading in parallel for complete data.
         # NOTE: `data_repository` is optional here because the worker only needs
@@ -261,9 +274,12 @@ class StationDataManager(QObject):
         if station_service:
             self._start_full_loading(station_service, data_repository)
     
-    def _start_fast_loading(self):
+    def _start_fast_loading(self, *, essential_station_cache=None):
         """Start fast essential station loading."""
-        self._fast_worker = FastStationDataWorker(self)
+        self._fast_worker = FastStationDataWorker(
+            essential_station_cache=essential_station_cache,
+            parent=self,
+        )
         self._fast_worker.essential_data_loaded.connect(self._on_essential_data_loaded)
         self._fast_worker.loading_failed.connect(self._on_fast_loading_failed)
         self._fast_worker.start()

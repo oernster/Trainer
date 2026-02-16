@@ -55,6 +55,8 @@ class StationsSettingsDialog(QDialog):
         *,
         station_service=None,
         route_service=None,
+        essential_station_cache=None,
+        station_cache_manager=None,
     ):
         """
         Initialize the train settings dialog.
@@ -77,6 +79,11 @@ class StationsSettingsDialog(QDialog):
         # Phase 2 boundary: this dialog must not construct services.
         self._station_service = station_service
         self._route_service = route_service
+
+        # Phase 2 boundary: no module-level singleton accessors.
+        # These optional dependencies are injected from bootstrap.
+        self._essential_station_cache = essential_station_cache
+        self._station_cache_manager = station_cache_manager
         
         # Initialize state management
         self.dialog_state = DialogState(self)
@@ -157,8 +164,11 @@ class StationsSettingsDialog(QDialog):
     def _setup_immediate_ui_responsiveness(self):
         """Set up immediate UI responsiveness - make fields editable instantly."""
         # Load essential stations immediately (very fast)
-        from src.services.routing.essential_station_cache import get_essential_stations
-        essential_stations = get_essential_stations()
+        essential_stations = (
+            self._essential_station_cache.get_all_essential_stations()
+            if self._essential_station_cache
+            else []
+        )
         
         if essential_stations and self.station_selection_widget:
             # Populate the combo boxes immediately
@@ -213,8 +223,7 @@ class StationsSettingsDialog(QDialog):
             logger.info("Starting deferred initialization...")
             
             # Set up optimized loading system (background)
-            from src.cache.station_cache_manager import get_station_cache_manager
-            self.cache_manager = get_station_cache_manager()
+            self.cache_manager = self._station_cache_manager
             
             # Start background station loading for enhanced autocomplete
             # IMPORTANT: do not require a data_repository here; `StationService` already
@@ -234,7 +243,10 @@ class StationsSettingsDialog(QDialog):
                     lambda error: self._update_status(f"Station loading error: {error}")
                 )
 
-                self.worker_manager.start_loading(self.station_service)
+                self.worker_manager.start_loading(
+                    self.station_service,
+                    essential_station_cache=self._essential_station_cache,
+                )
                 logger.info("Background station loading started")
             
             # Auto-trigger route calculation if both stations are set (deferred with delay)

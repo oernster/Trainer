@@ -7,7 +7,7 @@ manager classes for better separation of concerns and maintainability.
 """
 
 import logging
-from typing import Any, List, Optional
+from typing import Any, List, Optional, TYPE_CHECKING
 from PySide6.QtWidgets import (
     QMainWindow,
 )
@@ -21,6 +21,10 @@ from ..managers.theme_manager import ThemeManager
 from ..managers.weather_manager import WeatherManager
 from ..managers.astronomy_manager import AstronomyManager
 from ..managers.initialization_manager import InitializationManager
+
+if TYPE_CHECKING:  # pragma: no cover
+    from src.cache.station_cache_manager import StationCacheManager
+    from src.services.routing.essential_station_cache import EssentialStationCache
 from .managers import (
     UILayoutManager,
     WidgetLifecycleManager,
@@ -82,11 +86,40 @@ class MainWindow(QMainWindow):
     route_changed = Signal(str, str)  # Signal for when route changes (from_name, to_name)
     config_updated = Signal(object)  # Signal for when configuration is updated
 
+    # ---------------------------------------------------------------------
+    # Injected dependencies (composition root owns construction)
+    # ---------------------------------------------------------------------
+    # These are set by [`python.bootstrap_app()`](src/app/bootstrap.py:64).
+    train_manager: Optional[TrainManager]
+    weather_manager: Optional[WeatherManager]
+    astronomy_manager: Optional[AstronomyManager]
+    initialization_manager: Optional[InitializationManager]
+    essential_station_cache: "EssentialStationCache | None"
+    station_cache_manager: "StationCacheManager | None"
+
+    # Always present after bootstrap, but keep Optional for static analysis.
+    config_manager: Optional[ConfigManager]
+
+    # UI wiring (populated by `initialize_main_window`)
+    config: Any
+    theme_manager: ThemeManager
+    ui_layout_manager: Any
+    widget_lifecycle_manager: Any
+    event_handler_manager: Any
+    settings_dialog_manager: Any
+
     def __init__(self, config_manager: Optional[ConfigManager] = None):
-        """Initialize the main window with manager-based architecture."""
+        """Create the MainWindow shell.
+
+        Phase 2 boundary: this constructor must not assemble the object graph.
+        Long-lived managers/services are injected by
+        [`python.bootstrap_app()`](src/app/bootstrap.py:64).
+        """
+
         super().__init__()
 
-        initialize_main_window(window=self, config_manager=config_manager)
+        # Keep for compatibility: bootstrap will re-assign the injected instance.
+        self.config_manager = config_manager
 
     # ---------------------------------------------------------------------
     # Compatibility shims
@@ -131,7 +164,8 @@ class MainWindow(QMainWindow):
         if self.config:
             self.config.display.theme = self.theme_manager.current_theme
             try:
-                self.config_manager.save_config(self.config)
+                if self.config_manager:
+                    self.config_manager.save_config(self.config)
                 logger.info(f"Theme switched to {self.theme_manager.current_theme}")
             except ConfigurationError as e:
                 logger.error(f"Failed to save theme setting: {e}")

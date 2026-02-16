@@ -293,5 +293,12 @@ class HybridMoonPhaseService:
         self.cache.clear()
 
 
-# Global service instance
-moon_phase_service = HybridMoonPhaseService()
+"""Phase 2 boundary note:
+
+This module intentionally does *not* expose a module-level service instance.
+
+Composition rule:
+  - Bootstrap is the only place allowed to assemble the object graph.
+  - Callers must receive a [`python.HybridMoonPhaseService`](src/services/moon_phase_service.py:1)
+    instance via dependency injection.
+"""

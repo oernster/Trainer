@@ -12,8 +12,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import QSize
 from ..widgets.train_list_widget import TrainListWidget
-from ..weather_widgets import WeatherWidget
-from ..astronomy_widgets import AstronomyWidget
+from ..weather_components.weather_widget import WeatherWidget
+from ..astronomy_components.astronomy_widget import AstronomyWidget
 
 from .ui_layout_styles import header_button_stylesheet, menu_bar_stylesheet
 

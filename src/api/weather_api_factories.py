@@ -24,6 +24,10 @@ class WeatherAPIFactory:
     @staticmethod
     def create_manager_from_config(config: WeatherConfig):
         """Create weather manager based on configuration."""
-        # For now, only Open-Meteo is supported.
-        return WeatherAPIFactory.create_openmeteo_manager(config)
+        # Phase 2 directive: factories are banned as composition outside bootstrap.
+        # Keep this symbol for import compatibility, but fail fast if called.
+        raise RuntimeError(
+            "WeatherAPIFactory is not allowed to compose WeatherAPIManager in Phase 2; "
+            "use src.app.bootstrap.bootstrap_app()"
+        )
 

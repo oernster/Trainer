@@ -41,24 +41,9 @@ class InterchangePoint:
 
 class InterchangeDetectionService:
     """Service for detecting actual user journey interchanges."""
-    
-    _instance: Optional['InterchangeDetectionService'] = None
-    _instance_lock = threading.Lock()
-    
-    def __new__(cls):
-        """Implement singleton pattern to prevent multiple expensive initializations."""
-        if cls._instance is None:
-            with cls._instance_lock:
-                # Double-check pattern
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
-        return cls._instance
-    
+
     def __init__(self):
-        """Initialize the interchange detection service with lazy loading (singleton-safe)."""
-        # Prevent re-initialization of singleton
-        if hasattr(self, '_initialized'):
-            return
+        """Initialize the interchange detection service with lazy loading."""
             
         self.logger = logging.getLogger(__name__)
         
@@ -77,10 +62,7 @@ class InterchangeDetectionService:
         self._station_mapping_lock = threading.Lock()
         self._interchanges_lock = threading.Lock()
         
-        # Mark as initialized
-        self._initialized = True
-        
-        self.logger.info("InterchangeDetectionService singleton initialized with lazy loading")
+        self.logger.info("InterchangeDetectionService initialized with lazy loading")
     
     def _get_line_interchanges(self) -> Dict[str, List[Dict[str, Any]]]:
         from .interchange_components.line_interchanges_loading import get_line_interchanges

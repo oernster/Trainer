@@ -440,5 +440,6 @@ class WeatherAPIManager:
         logger.debug("WeatherAPIManager synchronous shutdown complete")
 
 
-# Backwards-compatible re-export
-from .weather_api_factories import WeatherAPIFactory  # noqa: E402
+# Phase 2 boundary:
+#   - This module must not re-export factory-based composition helpers.
+#   - Composition happens in [`python.bootstrap_app()`](src/app/bootstrap.py:71).

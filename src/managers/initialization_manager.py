@@ -187,9 +187,17 @@ class InitializationManager(QObject):
                 self.config.weather and
                 self.config.weather.enabled):
                 
-                # Only create weather manager if it doesn't exist
+                # Phase 2 boundary: bootstrap composes WeatherManager.
+                # InitializationManager may only wire an injected instance.
                 if not self.weather_manager:
-                    self.weather_manager = WeatherManager(self.config.weather)
+                    self.weather_manager = getattr(main_window, "weather_manager", None)
+
+                if not self.weather_manager:
+                    logger.warning(
+                        "Weather is enabled in config but no WeatherManager was injected; skipping weather wiring"
+                    )
+                    self.weather_initialized.emit()
+                    return
                 
                 # Connect to main window's weather widget
                 if main_window.weather_widget:
@@ -298,9 +306,17 @@ class InitializationManager(QObject):
                 self.config.astronomy and
                 self.config.astronomy.enabled):
                 
-                # Only create astronomy manager if it doesn't exist
+                # Phase 2 boundary: bootstrap composes AstronomyManager.
+                # InitializationManager may only wire an injected instance.
                 if not self.astronomy_manager:
-                    self.astronomy_manager = AstronomyManager(self.config.astronomy)
+                    self.astronomy_manager = getattr(main_window, "astronomy_manager", None)
+
+                if not self.astronomy_manager:
+                    logger.warning(
+                        "Astronomy is enabled in config but no AstronomyManager was injected; skipping astronomy wiring"
+                    )
+                    self.astronomy_initialized.emit()
+                    return
                 
                 # Connect to main window's astronomy widget (we know it exists now)
                 # Only connect signals if not already connected
@@ -352,93 +368,36 @@ class InitializationManager(QObject):
     
     def _start_parallel_astronomy_fetch(self) -> None:
         """Start parallel astronomy data fetching in background thread."""
-        try:
-            if not self.astronomy_manager:
-                logger.warning("Cannot start astronomy fetch: no astronomy manager")
-                return
-
-            # Create and configure worker thread
-            self.astronomy_worker = AstronomyDataWorker(self.astronomy_manager)
-            
-            # Connect worker signals
-            self.astronomy_worker.data_fetched.connect(self._on_astronomy_data_fetched)
-            self.astronomy_worker.fetch_error.connect(self._on_astronomy_fetch_error)
-            self.astronomy_worker.fetch_started.connect(self._on_astronomy_fetch_started)
-            self.astronomy_worker.fetch_completed.connect(self._on_astronomy_fetch_completed)
-            
-            # Start the worker thread
-            self.astronomy_worker.start()
-            
-        except Exception as e:
-            logger.error(f"Failed to start parallel astronomy fetch: {e}")
+        # Phase 2 boundary: background data fetching orchestration moved out.
+        # Keep the method as a no-op for compatibility.
+        return
     
     def _fetch_weather_data(self) -> None:
         """Fetch initial weather data (non-blocking)."""
-        if self.weather_manager:
-            try:
-                # Always run in new thread to avoid blocking and event loop issues
-                def run_weather_fetch():
-                    if self.weather_manager:  # Additional null check
-                        try:
-                            asyncio.run(self.weather_manager.refresh_weather())
-                            logger.debug("Initial weather fetch completed successfully")
-                        except Exception as e:
-                            logger.error(f"Weather fetch failed in thread: {e}")
-                
-                threading.Thread(target=run_weather_fetch, daemon=True).start()
-                logger.debug("Initial weather fetch started in background thread")
-            except Exception as e:
-                logger.warning(f"Failed to start initial weather fetch: {e}")
+        # Phase 2 boundary: background data fetching orchestration moved out.
+        return
     
     def _apply_weather_theme(self, main_window) -> None:
         """Apply theme to weather widget based on main window's current theme."""
-        try:
-            if main_window.weather_widget and hasattr(main_window, 'theme_manager'):
-                current_theme = main_window.theme_manager.current_theme
-                
-                # Create theme colors dictionary for weather widget
-                # Weather items should have transparent backgrounds, not dark ones
-                theme_colors = {
-                    "background_primary": "#1a1a1a" if current_theme == "dark" else "#ffffff",
-                    "background_secondary": "transparent",  # Make weather items transparent
-                    "background_hover": "rgba(79, 195, 247, 0.2)",  # Light blue hover
-                    "text_primary": "#ffffff" if current_theme == "dark" else "#000000",
-                    "primary_accent": "#1976d2",
-                    "border_primary": "transparent",  # Remove borders from weather items
-                }
-                
-                # Apply theme to weather widget
-                main_window.weather_widget.apply_theme(theme_colors)
-                logger.debug(f"Applied {current_theme} theme to weather widget")
-        except Exception as e:
-            logger.warning(f"Failed to apply theme to weather widget: {e}")
+        # Phase 2 boundary: theming is owned by UI/theme system.
+        return
     
     def _on_astronomy_data_fetched(self, forecast_data) -> None:
         """Handle astronomy data fetch completion."""
-        
-        self.astronomy_data_ready.emit()
-        
-        # Start auto-refresh for astronomy if enabled
-        if (self.astronomy_manager and
-            self.config and
-            hasattr(self.config, "astronomy") and
-            self.config.astronomy and
-            self.config.astronomy.enabled):
-            self.astronomy_manager.start_auto_refresh()
-            logger.debug("Astronomy auto-refresh started")
+        # Phase 2 boundary: fetching moved out.
+        return
     
     def _on_astronomy_fetch_error(self, error_message: str) -> None:
         """Handle astronomy data fetch error."""
-        logger.warning(f"Astronomy data fetch failed: {error_message}")
-        # Don't emit error signal - let the widget handle placeholder display
+        return
     
     def _on_astronomy_fetch_started(self) -> None:
         """Handle astronomy fetch start."""
-        logger.debug("Astronomy data fetch started in background thread")
+        return
     
     def _on_astronomy_fetch_completed(self) -> None:
         """Handle astronomy fetch completion."""
-        logger.debug("Astronomy data fetch completed in background thread")
+        return
     
     def shutdown(self) -> None:
         """Shutdown initialization manager and cleanup resources."""
@@ -468,9 +427,9 @@ class InitializationManager(QObject):
             "has_weather_manager": self.weather_manager is not None,
             "has_astronomy_manager": self.astronomy_manager is not None,
             "has_train_manager": self.train_manager is not None,
-            "astronomy_worker_running": (self.astronomy_worker and self.astronomy_worker.isRunning()),
             "initialization_time": (
-                time.time() - self.initialization_start_time 
-                if self.initialization_start_time > 0 else 0
-            )
+                time.time() - self.initialization_start_time
+                if self.initialization_start_time > 0
+                else 0
+            ),
         }

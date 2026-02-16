@@ -302,5 +302,5 @@ class WeatherConfigMigrator:
         return config_version != current_version
 
 
-# Default weather configuration instance
-default_weather_config = WeatherConfigFactory.create_waterloo_config()
+# Phase 2 boundary: no module-level instances.
+# Callers must construct configs explicitly.

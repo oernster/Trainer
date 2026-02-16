@@ -1,0 +1,15 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Trainer
+GenericName=Train Times Application
+Comment=Train times application with integrated weather forecasting and astronomical events
+Icon=com.oliverernster.Trainer
+Exec=trainer
+Terminal=false
+Categories=Utility;Education;
+Keywords=train;railway;times;schedule;weather;astronomy;transport;
+StartupNotify=true
+StartupWMClass=trainer
+X-Flatpak=com.oliverernster.Trainer
+X-GNOME-UsesNotifications=true

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.oliverernster.Trainer</id>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Trainer</name>
+  <summary>Train times application with integrated weather forecasting and astronomical events</summary>
+  <description>
+    <p>
+      Trainer is a comprehensive train times application that provides real-time train schedules,
+      route planning, and journey information for the UK railway network. It includes integrated
+      weather forecasting and astronomical event tracking to help you plan your journeys better.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Real-time train departure and arrival times</li>
+      <li>Route planning with multiple journey options</li>
+      <li>Station search and information</li>
+      <li>Integrated weather forecasts for journey planning</li>
+      <li>Astronomical event tracking (sunrise, sunset, moon phases)</li>
+      <li>Support for via stations and complex routes</li>
+      <li>Offline route calculation capabilities</li>
+      <li>Comprehensive UK railway network coverage</li>
+      <li>Modern Qt6-based user interface</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">com.oliverernster.Trainer.desktop</launchable>
+  <provides>
+    <binary>trainer</binary>
+  </provides>
+  <url type="homepage">https://github.com/oliverernster/trainer</url>
+  <url type="bugtracker">https://github.com/oliverernster/trainer/issues</url>
+  <url type="help">https://github.com/oliverernster/trainer/blob/main/README.md</url>
+  <developer_name>Oliver Ernster</developer_name>
+  <update_contact>oliver.ernster@example.com</update_contact>
+  <releases>
+    <release version="5.0.0" date="2025-07-19">
+      <description>
+        <p>Version 5.0.0 with improved data loading and clean distribution structure.</p>
+      </description>
+    </release>
+  </releases>
+  <content_rating type="oars-1.1"/>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <categories>
+    <category>Utility</category>
+    <category>Travel</category>
+    <category>Qt</category>
+  </categories>
+</component>

@@ -17,6 +17,8 @@ import hashlib
 
 logger = logging.getLogger(__name__)
 
+from version import __station_cache_version__
+
 
 class StationCacheManager:
     """
@@ -50,7 +52,7 @@ class StationCacheManager:
         self.metadata_file = self.cache_directory / "cache_metadata.json"
         
         # Cache settings
-        self.cache_version = "1.0.0"
+        self.cache_version = __station_cache_version__
         self.max_cache_age_hours = 24  # Cache expires after 24 hours
         self.compression_enabled = True
         

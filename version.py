@@ -18,6 +18,13 @@ __company__ = "Trainer by Oliver Ernster"
 __copyright__ = "© 2026 Oliver Ernster"
 __description__ = "Train times application with integrated weather forecasting and astronomical events"
 
+# Internal schema / data versions (SSOT)
+#
+# These version strings are used to invalidate caches, migrate configs, or track internal
+# data/schema compatibility. They are intentionally separate from the core app version.
+__station_cache_version__ = "1.0.0"
+__routing_data_version__ = "1.0.0"
+
 # Feature information
 __features__ = [
     "Scheduled train departure information",
@@ -42,6 +49,9 @@ __weather_features__ = [
     "Configurable location settings",
     "Automatic refresh intervals",
 ]
+
+# Weather config schema version. Currently aligned with the weather integration version.
+__weather_config_schema_version__ = __weather_version__
 
 # Astronomy integration information
 __astronomy_version__ = "2.0.0"
@@ -86,6 +96,27 @@ __installation_required__ = False
 def get_version_string() -> str:
     """Get formatted version string."""
     return f"{__app_name__} v{__version__}"
+
+
+def get_build_number() -> int:
+    """Get a monotonically increasing build number derived from [`__version_info__`](version.py:11).
+
+    This is useful for platforms that prefer an integer build/version code.
+    """
+    major, minor, patch = __version_info__
+    return major * 10000 + minor * 100 + patch
+
+
+def get_macos_bundle_versions() -> dict:
+    """Get macOS Info.plist-compatible version strings.
+
+    - `CFBundleShortVersionString`: human-facing semantic version
+    - `CFBundleVersion`: build number (must be monotonically increasing)
+    """
+    return {
+        "short_version": __version__,
+        "bundle_version": str(get_build_number()),
+    }
 
 
 def get_full_version_info() -> str:
@@ -169,6 +200,9 @@ def get_build_metadata() -> dict:
         "build_system": __build_system__,
         "weather_version": __weather_version__,
         "astronomy_version": __astronomy_version__,
+        "weather_config_schema_version": __weather_config_schema_version__,
+        "station_cache_version": __station_cache_version__,
+        "routing_data_version": __routing_data_version__,
         "estimated_size": __estimated_size_mb__,
     }
 

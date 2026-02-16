@@ -13,6 +13,21 @@ import traceback
 import io
 from pathlib import Path
 
+# ---------------------------------------------------------------------------
+# Ultra-early CLI flags
+# ---------------------------------------------------------------------------
+# build/install scripts may run `trainer --version` to verify installation.
+# That must not start Qt or acquire singleton locks.
+if "--version" in sys.argv:
+    try:
+        from version import __app_name__, __version__
+
+        print(f"{__app_name__} {__version__}")
+    except Exception:
+        # Fall back to something, but always exit cleanly.
+        print("Trainer")
+    raise SystemExit(0)
+
 
 def _log_startup(logger) -> None:
     logger.info("Trainer starting")
@@ -498,65 +513,75 @@ def main():
                 except Exception as exc:
                     logger.debug("Initial weather refresh failed: %s", exc)
 
-                # Connect to train data completion to show window.
-                # IMPORTANT: connect *before* starting the fetch. On a fresh
-                # install (no station config), TrainManager can emit
-                # `trains_updated([])` almost immediately; if we connect after
-                # calling `fetch_trains()`, the splash can get stuck forever.
-                def on_train_data_ready():
-                    splash.show_message("Ready!")
-                    app.processEvents()
-                    # Show window immediately after train data is ready
-                    window.show()
-                    # Focus and activate the main window
-                    window.raise_()
-                    window.activateWindow()
-                    splash.close()
-                    
-                    # Disconnect the signal to prevent multiple calls
-                    train_manager.trains_updated.disconnect(on_train_data_ready)
+                # Show the main window as soon as widgets are initialized.
+                #
+                # Rationale: previously the splash was kept open until the first
+                # `train_manager.trains_updated` signal. On some launches
+                # (especially from the desktop environment), that signal can be
+                # delayed/missed due to threading/Qt event timing, leaving the
+                # splash stuck indefinitely. Showing the window here removes that
+                # failure mode; train data can continue loading in the background.
+                splash.show_message("Ready!")
+                app.processEvents()
 
-                    # Best-effort disconnect for error path if it was connected.
-                    try:
-                        train_manager.error_occurred.disconnect(on_train_data_error)
-                    except Exception:
-                        pass
-                
-                def on_train_data_error(message: str) -> None:
-                    # Avoid leaving the splash up forever if train loading fails.
-                    try:
-                        splash.show_message("Continuing (train data failed)…")
-                        app.processEvents()
-                    except Exception:
-                        pass
+                window.show()
+                window.raise_()
+                window.activateWindow()
+                splash.close()
 
-                    window.show()
-                    window.raise_()
-                    window.activateWindow()
-                    splash.close()
-
-                    try:
-                        train_manager.error_occurred.disconnect(on_train_data_error)
-                    except Exception:
-                        pass
-                    try:
-                        train_manager.trains_updated.disconnect(on_train_data_ready)
-                    except Exception:
-                        pass
-
-                # Connect to train data signals *before* starting the fetch.
-                train_manager.trains_updated.connect(on_train_data_ready)
+                # Single train data fetch after widgets are ready (non-blocking)
                 try:
-                    train_manager.error_occurred.connect(on_train_data_error)
-                except Exception:
-                    pass
-
-                # Single train data fetch after widgets are ready
-                train_manager.fetch_trains()
+                    train_manager.fetch_trains()
+                except Exception as exc:
+                    logger.debug("Initial train fetch failed: %s", exc)
             
             # Use proper signaling instead of timers
             if window.initialization_manager:
+                window_shown = {"value": False}
+
+                def _show_main_window_and_close_splash(*, reason: str) -> None:
+                    if window_shown["value"]:
+                        return
+                    window_shown["value"] = True
+
+                    try:
+                        logger.info("Showing main window (%s)", reason)
+                    except Exception:
+                        pass
+
+                    try:
+                        window.show()
+                        window.raise_()
+                        window.activateWindow()
+                    finally:
+                        try:
+                            splash.close()
+                        except Exception:
+                            pass
+
+                def on_init_error(message: str) -> None:
+                    # Never allow the splash to remain indefinitely if the
+                    # initialization manager errors.
+                    try:
+                        logger.error("Initialization failed: %s", message)
+                    except Exception:
+                        pass
+
+                    _show_main_window_and_close_splash(reason="initialization_error")
+
+                # Normal happy-path.
                 window.initialization_manager.initialization_completed.connect(on_widgets_ready)
+                try:
+                    window.initialization_manager.initialization_error.connect(on_init_error)
+                except Exception:
+                    pass
+
+                # Watchdog: if neither completed nor error fires (hang), show
+                # the main window anyway after a short grace period.
+                def _init_watchdog() -> None:
+                    _show_main_window_and_close_splash(reason="init_watchdog")
+
+                QTimer.singleShot(10000, _init_watchdog)
                 
             else:
                 # Fallback if initialization manager not available - still use signals
@@ -569,17 +594,16 @@ def main():
                     except Exception as exc:
                         logger.debug("Initial weather refresh (fallback) failed: %s", exc)
 
-                    # Connect before fetching for the same reason as the main path.
-                    def on_fallback_train_data():
-                        window.show()
-                        # Focus and activate the main window
-                        window.raise_()
-                        window.activateWindow()
-                        splash.close()
-                        train_manager.trains_updated.disconnect(on_fallback_train_data)
-                    train_manager.trains_updated.connect(on_fallback_train_data)
+                    # Mirror the main path: show window immediately, then fetch.
+                    window.show()
+                    window.raise_()
+                    window.activateWindow()
+                    splash.close()
 
-                    train_manager.fetch_trains()
+                    try:
+                        train_manager.fetch_trains()
+                    except Exception as exc:
+                        logger.debug("Initial train fetch failed (fallback): %s", exc)
                 
                 QTimer.singleShot(1000, fallback_startup)
 

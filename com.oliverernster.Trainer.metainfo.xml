@@ -34,9 +34,9 @@
   <developer_name>Oliver Ernster</developer_name>
   <update_contact>oliver.ernster@example.com</update_contact>
   <releases>
-    <release version="5.0.1" date="2025-07-19">
+    <release version="5.0.3" date="2025-07-19">
       <description>
-        <p>Version 5.0.1 with improved data loading and clean distribution structure.</p>
+        <p>Version 5.0.3 with improved data loading and clean distribution structure.</p>
       </description>
     </release>
   </releases>

@@ -39,7 +39,8 @@ Layer map (coarse):
 
 ### `src/ui/**`
 
-- Main window: [`python.MainWindow`](src/ui/main_window_refactored.py:69)
+- Main window import shim (preferred import target): [`src/ui/main_window.py`](src/ui/main_window.py:1)
+- Main window implementation: [`python.MainWindow`](src/ui/main_window_refactored.py:69)
 - UI wiring: [`python.initialize_main_window()`](src/ui/main_window_components/initialization.py:30)
 - Managers: [`src/ui/managers/`](src/ui/managers/__init__.py:1)
 
@@ -65,5 +66,14 @@ Synthetic train determinism: [`python.TrainDataService._build_deterministic_rng(
 
 - Disk cache: [`src/cache/disk_cache.py`](src/cache/disk_cache.py:1)
 - Memory cache: [`src/cache/memory_cache.py`](src/cache/memory_cache.py:1)
+
+
+---
+
+## 4) Repository tooling (non-runtime)
+
+This repository contains a small number of developer-oriented helper scripts.
+
+- macOS DMG builder (Nuitka-based): [`builddmgnuitka.py`](builddmgnuitka.py:1)
 
 

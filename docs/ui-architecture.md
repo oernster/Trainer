@@ -25,6 +25,8 @@ The main UI shell is [`python.MainWindow`](src/ui/main_window_refactored.py:69).
 - delegating most UI work to dedicated “UI managers”
 - delegating keyboard shortcuts to the event handler manager via `keyPressEvent`
 
+Note: The preferred import path for the window is the compatibility shim [`src/ui/main_window.py`](src/ui/main_window.py:1), which re-exports the refactored implementation.
+
 ### UI managers (composition inside the UI layer)
 
 The main window is split into managers to keep responsibilities narrow:
@@ -98,6 +100,21 @@ Supported shortcuts include:
 - `F5`: refresh all data
 - `Ctrl+R`: refresh all data
 - `Ctrl+Q`: quit
+
+---
+
+## 7. Platform-specific UI tweaks
+
+The UI aims to be cross-platform, but there are a few *explicit* per-platform adjustments where Qt defaults differ.
+
+### macOS
+
+- Station selector spacing and button width tweaks exist for macOS (see platform checks in [`src/ui/components/station_selection_widget.py`](src/ui/components/station_selection_widget.py:1)).
+- Route details layout needs additional vertical space on macOS (see platform checks in [`src/ui/components/route_details_widget.py`](src/ui/components/route_details_widget.py:1)).
+
+### Linux
+
+Several dialogs/widgets apply Linux-only centering/sizing adjustments (e.g. checks for `sys.platform.startswith('linux')` in various UI modules).
 
 ### Refresh responsibilities
 

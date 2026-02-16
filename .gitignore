@@ -1,3 +1,5 @@
+trainer.flatpak
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -207,3 +209,4 @@ src/cache/station_data.cache
 # rubbish
 generate_scripts.py
 ALL_SOURCES.txt
+repo

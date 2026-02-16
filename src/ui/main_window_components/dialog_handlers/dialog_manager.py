@@ -164,17 +164,16 @@ class DialogManager:
             config_path: Optional path to configuration file to display
         """
         from version import get_about_text
-        
-        # Use centralized about text with config path
-        about_text = get_about_text()
-        if config_path:
-            about_text += f"<p><small>Config: {config_path}</small></p>"
+        from src.ui.widgets.about_dialog import AboutDialog
 
-        msg_box = QMessageBox(self.main_window)
-        msg_box.setIcon(QMessageBox.Icon.Information)
-        msg_box.setWindowTitle("About")
-        msg_box.setText(about_text)
-        msg_box.exec()
+        about_html = get_about_text()
+        dialog = AboutDialog(
+            parent=self.main_window,
+            about_html=about_html,
+            config_path=config_path,
+            title="About",
+        )
+        dialog.exec()
     
     def show_astronomy_enabled_message(self) -> None:
         """Show the astronomy enabled success message."""

@@ -1,0 +1,94 @@
+{
+    "app-id": "com.oliverernster.Trainer",
+    "runtime": "org.kde.Platform",
+    "runtime-version": "6.8",
+    "sdk": "org.kde.Sdk",
+    "command": "trainer",
+    "finish-args": [
+        "--share=ipc",
+        "--socket=x11",
+        "--socket=wayland",
+        "--socket=fallback-x11",
+        "--device=dri",
+        "--share=network",
+        "--filesystem=home",
+        "--filesystem=xdg-documents",
+        "--filesystem=xdg-download",
+        "--talk-name=org.freedesktop.Notifications",
+        "--talk-name=org.kde.StatusNotifierWatcher",
+        "--own-name=com.oliverernster.Trainer"
+    ],
+    "build-options": {
+        "env": {
+            "PIP_CACHE_DIR": "/run/build/trainer/pip-cache"
+        },
+        "build-args": [
+            "--share=network"
+        ]
+    },
+    "modules": [
+        {
+            "name": "python3-pip",
+            "buildsystem": "simple",
+            "build-commands": [
+                "python3 -m ensurepip --upgrade"
+            ]
+        },
+        {
+            "name": "python-dependencies",
+            "buildsystem": "simple",
+            "build-commands": [
+                "echo 'Installing PySide6 and dependencies for Trainer...'",
+                "pip3 install --no-cache-dir --prefix=${FLATPAK_DEST} PySide6>=6.5.0",
+                "echo 'Verifying PySide6 installation...'",
+                "python3 -c 'import PySide6; print(\"PySide6 version:\", PySide6.__version__)'",
+                "echo 'Installing other Python dependencies...'",
+                "pip3 install --no-cache-dir --prefix=${FLATPAK_DEST} requests>=2.31.0",
+                "pip3 install --no-cache-dir --prefix=${FLATPAK_DEST} aiohttp>=3.8.0",
+                "pip3 install --no-cache-dir --prefix=${FLATPAK_DEST} python-dateutil>=2.8.0",
+                "pip3 install --no-cache-dir --prefix=${FLATPAK_DEST} pydantic>=2.0.0",
+                "pip3 install --no-cache-dir --prefix=${FLATPAK_DEST} imageio>=2.31.0",
+                "echo 'Checking PySide6 Qt plugins...'",
+                "find ${FLATPAK_DEST}/lib/python3.12/site-packages/PySide6/Qt/plugins -name '*platform*' -type d || echo 'Platform plugins not found in expected location'"
+            ]
+        },
+        {
+            "name": "trainer",
+            "buildsystem": "simple",
+            "build-commands": [
+                "echo 'Installing Trainer application files to /app...'",
+                "cp -rv main.py ${FLATPAK_DEST}/",
+                "cp -rv src ${FLATPAK_DEST}/",
+                "if [ -f version.py ]; then cp -rv version.py ${FLATPAK_DEST}/; fi",
+                "if [ -d assets ]; then cp -rv assets ${FLATPAK_DEST}/; fi",
+                "if [ -f LICENSE ]; then cp -rv LICENSE ${FLATPAK_DEST}/; fi",
+                "if [ -d licenses ]; then cp -rv licenses ${FLATPAK_DEST}/; fi",
+                "echo 'Verifying main.py exists:'",
+                "test -f ${FLATPAK_DEST}/main.py && echo 'main.py successfully copied' || (echo 'ERROR: main.py not found!' && exit 1)",
+                "echo 'Verifying src directory exists:'",
+                "test -d ${FLATPAK_DEST}/src && echo 'src directory successfully copied' || (echo 'ERROR: src directory not found!' && exit 1)",
+                "echo 'Installing launcher script...'",
+                "mkdir -p ${FLATPAK_DEST}/bin",
+                "cp trainer-runner.sh ${FLATPAK_DEST}/bin/trainer",
+                "chmod +x ${FLATPAK_DEST}/bin/trainer",
+                "echo 'Verifying launcher script:'",
+                "test -x ${FLATPAK_DEST}/bin/trainer && echo 'Launcher script created successfully' || (echo 'ERROR: Launcher script creation failed!' && exit 1)",
+                "echo 'Final verification - listing /app contents:'",
+                "ls -la ${FLATPAK_DEST}/",
+                "echo 'Testing Python can find main.py:'",
+                "cd ${FLATPAK_DEST} && python3 -c 'import os; print(\"main.py exists:\", os.path.exists(\"main.py\"))'",
+                "install -Dm644 com.oliverernster.Trainer.desktop ${FLATPAK_DEST}/share/applications/com.oliverernster.Trainer.desktop",
+                "install -Dm644 com.oliverernster.Trainer.metainfo.xml ${FLATPAK_DEST}/share/metainfo/com.oliverernster.Trainer.metainfo.xml",
+                "echo 'Installing application icons...'",
+                "if [ -f assets/trainer_icon.png ]; then install -Dm644 assets/trainer_icon.png ${FLATPAK_DEST}/share/icons/hicolor/256x256/apps/com.oliverernster.Trainer.png; echo 'Installed 256x256 icon'; fi",
+                "for size in 16 32 64 128; do if [ -f assets/trainer_icon_${size}.png ]; then install -Dm644 assets/trainer_icon_${size}.png ${FLATPAK_DEST}/share/icons/hicolor/${size}x${size}/apps/com.oliverernster.Trainer.png; echo \"Installed ${size}x${size} icon\"; fi; done"
+            ],
+            "sources": [
+                {
+                    "type": "dir",
+                    "path": "."
+                }
+            ]
+        }
+    ]
+}

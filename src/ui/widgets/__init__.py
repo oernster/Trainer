@@ -11,13 +11,14 @@ from .train_item_widget import TrainItemWidget
 from .train_list_widget import TrainListWidget
 from .route_display_dialog import RouteDisplayDialog
 from .empty_state_widget import EmptyStateWidget
+from .about_dialog import AboutDialog
 
 __all__ = [
     'BaseTrainWidget',
-    'ThemeableWidget',
     'CustomScrollBar',
     'TrainItemWidget',
     'TrainListWidget',
     'RouteDisplayDialog',
     'EmptyStateWidget',
+    'AboutDialog',
 ]

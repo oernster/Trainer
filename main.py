@@ -53,52 +53,73 @@ def _log_shutdown(logger, exit_code: int) -> None:
     logger.info("Trainer exiting with code %s", exit_code)
 
 # CRITICAL: Ultra-early singleton check before ANY imports or initialization
+#
+# The previous implementation used PID-in-a-file. That is fragile in Flatpak
+# because PIDs can be reused and `/tmp` can be shared across launches, leading to
+# false positives (“another instance is running”) after crashes or restarts.
+#
+# Use an actual OS-level file lock instead.
+_ultra_early_lock_handle = None
+
+
+def _ultra_early_lock_path() -> Path:
+    runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
+    if runtime_dir:
+        return Path(runtime_dir) / "trainer_app_ultra_early.lock"
+    return Path(tempfile.gettempdir()) / "trainer_app_ultra_early.lock"
+
+
 def check_single_instance_ultra_early():
-    """Ultra-early singleton check using file lock before any Qt imports."""
-    lock_file_path = Path(tempfile.gettempdir()) / "trainer_app_ultra_early.lock"
-    
+    """Ultra-early singleton check using an OS file lock (pre-Qt)."""
+
+    global _ultra_early_lock_handle
+    lock_file_path = _ultra_early_lock_path()
+
     try:
-        # Try to create lock file exclusively
-        if lock_file_path.exists():
-            # Check if the process that created the lock is still running
+        lock_file_path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        # Non-fatal: fall back to attempting to open anyway.
+        pass
+
+    try:
+        # Keep the file handle open for the lifetime of the process so the lock
+        # remains held.
+        f = open(lock_file_path, "a+", encoding="utf-8")
+
+        if sys.platform == "win32":
+            import msvcrt
+
             try:
-                with open(lock_file_path, 'r') as f:
-                    pid = int(f.read().strip())
-                
-                # Check if process is still running
-                if sys.platform == "win32":
-                    import subprocess
-                    result = subprocess.run(['tasklist', '/FI', f'PID eq {pid}'],
-                                          capture_output=True, text=True, timeout=5)
-                    if str(pid) in result.stdout:
-                        print("ERROR: Another instance of Trainer is already running!")
-                        print("Please close the existing instance before starting a new one.")
-                        sys.exit(1)
-                    else:
-                        # Process not running, remove stale lock file
-                        lock_file_path.unlink()
-                else:
-                    # Unix-like systems
-                    try:
-                        os.kill(pid, 0)  # Check if process exists
-                        print("ERROR: Another instance of Trainer is already running!")
-                        print("Please close the existing instance before starting a new one.")
-                        sys.exit(1)
-                    except OSError:
-                        # Process not running, remove stale lock file
-                        lock_file_path.unlink()
-            except (ValueError, FileNotFoundError):
-                # Invalid lock file, remove it
-                lock_file_path.unlink()
-        
-        # Create new lock file with current PID
-        with open(lock_file_path, 'w') as f:
+                # Non-blocking exclusive lock
+                msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+            except OSError:
+                print("ERROR: Another instance of Trainer is already running!")
+                print("Please close the existing instance before starting a new one.")
+                sys.exit(1)
+        else:
+            import fcntl
+
+            try:
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                print("ERROR: Another instance of Trainer is already running!")
+                print("Please close the existing instance before starting a new one.")
+                sys.exit(1)
+
+        # Record our PID for debugging only (not used for correctness)
+        try:
+            f.seek(0)
+            f.truncate()
             f.write(str(os.getpid()))
-        
+            f.flush()
+        except Exception:
+            pass
+
+        _ultra_early_lock_handle = f
         return lock_file_path
-        
+
     except Exception as e:
-        print(f"Warning: Failed to create ultra-early lock file: {e}")
+        print(f"Warning: Failed to acquire ultra-early lock file: {e}")
         return None
 
 # Perform ultra-early singleton check BEFORE any other imports
@@ -124,6 +145,25 @@ from version import (
 def cleanup_ultra_early_lock():
     """Clean up the ultra-early lock file."""
     global _ultra_early_lock_file
+    global _ultra_early_lock_handle
+
+    try:
+        if _ultra_early_lock_handle is not None:
+            try:
+                if sys.platform != "win32":
+                    import fcntl
+
+                    fcntl.flock(_ultra_early_lock_handle.fileno(), fcntl.LOCK_UN)
+            except Exception:
+                pass
+            try:
+                _ultra_early_lock_handle.close()
+            except Exception:
+                pass
+            _ultra_early_lock_handle = None
+    except Exception:
+        pass
+
     if _ultra_early_lock_file and _ultra_early_lock_file.exists():
         try:
             _ultra_early_lock_file.unlink()

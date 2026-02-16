@@ -37,6 +37,20 @@ python3 main.py  # Windows: python main.py
 python build.py
 ```
 
+### Building macOS DMG (Apple Silicon)
+
+The legacy DMG script [`builddmg.py`](builddmg.py:1) can fail at runtime due to
+Python/package ABI mismatches (e.g. compiled wheels like `pydantic_core`).
+
+The recommended macOS distribution path is the Nuitka-based DMG builder:
+
+```bash
+python3 builddmgnuitka.py
+```
+
+This produces:
+- `trainer-macos-arm64.dmg`
+
 ## Documentation
 
 ### Core Documentation

@@ -18,6 +18,13 @@ class MinimalSegment:
     time_minutes: int = 15
     train_service_id: Optional[str] = None
 
+    # UI compatibility: [`python.UndergroundFormatter.is_underground_segment()`](src/ui/formatters/underground_formatter.py:59)
+    # requires `service_pattern: str` on each segment. Minimal segments are always
+    # non-underground; keep them explicit so UI formatters/widgets don't crash.
+    @property
+    def service_pattern(self) -> str:
+        return "WALKING" if self.is_walking else "RAIL"
+
     @property
     def line_name(self) -> str:
         return "WALKING" if self.is_walking else "National Rail"
@@ -202,4 +209,3 @@ def create_minimal_route(
         avoid_walking=avoid_walking,
         walking_connections=walking_connections,
     )
-

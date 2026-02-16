@@ -14,6 +14,11 @@ def _iter_python_files() -> list[Path]:
         "main.build",
         "main.dist",
         "main.onefile-build",
+        # Local build artifacts / staging (can contain vendored 3rd party python
+        # sources including template files that are intentionally not valid
+        # Python).
+        "temp_dmg",
+        "staging_dmg",
     }
     python_files: list[Path] = []
     for path in root.rglob("*.py"):
@@ -65,4 +70,3 @@ def test_no_known_schema_version_literals_reintroduced():
                 offenders.append(f"{path.relative_to(Path(__file__).resolve().parents[1])}: {snippet}")
 
     assert offenders == [], "Forbidden version literals found:\n" + "\n".join(offenders)
-

@@ -181,7 +181,19 @@ class NetworkGraphBuilder:
                 lines_dir = get_lines_directory()
             except (ImportError, FileNotFoundError):
                 # Fallback to old method
+                # Keep compatibility with packaged builds where resources may be
+                # located under `Contents/MacOS/src/data/lines`.
                 lines_dir = Path("src/data/lines")
+
+            # Ensure `lines_dir` actually exists; if not, fall back to resolver again
+            # via cwd-based discovery (this guards against odd launcher working dirs).
+            if not lines_dir.exists():
+                try:
+                    from ...utils.data_path_resolver import get_lines_directory as _get_lines_directory
+
+                    lines_dir = _get_lines_directory()
+                except Exception:
+                    pass
             
             # Convert line name to potential file name
             # Remove common suffixes and normalize
@@ -325,6 +337,16 @@ class NetworkGraphBuilder:
             except (ImportError, FileNotFoundError):
                 # Fallback to old method
                 interchange_file = Path("src/data/interchange_connections.json")
+
+            if not interchange_file.exists():
+                # Try one more time through the resolver (e.g. if the first import
+                # succeeded but returned a non-existent path due to environment).
+                try:
+                    from ...utils.data_path_resolver import get_data_file_path as _get_data_file_path
+
+                    interchange_file = _get_data_file_path("interchange_connections.json")
+                except Exception:
+                    pass
                 
             if not interchange_file.exists():
                 return
@@ -447,6 +469,14 @@ class NetworkGraphBuilder:
             except (ImportError, FileNotFoundError):
                 # Fallback to old method
                 interchange_file = Path("src/data/interchange_connections.json")
+
+            if not interchange_file.exists():
+                try:
+                    from ...utils.data_path_resolver import get_data_file_path as _get_data_file_path
+
+                    interchange_file = _get_data_file_path("interchange_connections.json")
+                except Exception:
+                    pass
                 
             if not interchange_file.exists():
                 self.logger.warning("Interchange connections file not found")

@@ -498,10 +498,11 @@ def main():
                 except Exception as exc:
                     logger.debug("Initial weather refresh failed: %s", exc)
 
-                # Single train data fetch after widgets are ready
-                train_manager.fetch_trains()
-
-                # Connect to train data completion to show window
+                # Connect to train data completion to show window.
+                # IMPORTANT: connect *before* starting the fetch. On a fresh
+                # install (no station config), TrainManager can emit
+                # `trains_updated([])` almost immediately; if we connect after
+                # calling `fetch_trains()`, the splash can get stuck forever.
                 def on_train_data_ready():
                     splash.show_message("Ready!")
                     app.processEvents()
@@ -514,9 +515,44 @@ def main():
                     
                     # Disconnect the signal to prevent multiple calls
                     train_manager.trains_updated.disconnect(on_train_data_ready)
+
+                    # Best-effort disconnect for error path if it was connected.
+                    try:
+                        train_manager.error_occurred.disconnect(on_train_data_error)
+                    except Exception:
+                        pass
                 
-                # Connect to train data signal to show window when data is ready
+                def on_train_data_error(message: str) -> None:
+                    # Avoid leaving the splash up forever if train loading fails.
+                    try:
+                        splash.show_message("Continuing (train data failed)…")
+                        app.processEvents()
+                    except Exception:
+                        pass
+
+                    window.show()
+                    window.raise_()
+                    window.activateWindow()
+                    splash.close()
+
+                    try:
+                        train_manager.error_occurred.disconnect(on_train_data_error)
+                    except Exception:
+                        pass
+                    try:
+                        train_manager.trains_updated.disconnect(on_train_data_ready)
+                    except Exception:
+                        pass
+
+                # Connect to train data signals *before* starting the fetch.
                 train_manager.trains_updated.connect(on_train_data_ready)
+                try:
+                    train_manager.error_occurred.connect(on_train_data_error)
+                except Exception:
+                    pass
+
+                # Single train data fetch after widgets are ready
+                train_manager.fetch_trains()
             
             # Use proper signaling instead of timers
             if window.initialization_manager:
@@ -533,8 +569,7 @@ def main():
                     except Exception as exc:
                         logger.debug("Initial weather refresh (fallback) failed: %s", exc)
 
-                    train_manager.fetch_trains()
-                    # Connect to train data signal for fallback too
+                    # Connect before fetching for the same reason as the main path.
                     def on_fallback_train_data():
                         window.show()
                         # Focus and activate the main window
@@ -543,6 +578,8 @@ def main():
                         splash.close()
                         train_manager.trains_updated.disconnect(on_fallback_train_data)
                     train_manager.trains_updated.connect(on_fallback_train_data)
+
+                    train_manager.fetch_trains()
                 
                 QTimer.singleShot(1000, fallback_startup)
 

@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 import asyncio
 from PySide6.QtWidgets import QApplication
-from PySide6.QtCore import QTimer, QUrl
+from PySide6.QtCore import QTimer, QUrl, Qt
 from PySide6.QtGui import QDesktopServices, QCloseEvent
 
 logger = logging.getLogger(__name__)
@@ -363,16 +363,22 @@ class EventHandlerManager:
         """
         try:
             # Handle common shortcuts
-            if event.key() == 16777266:  # F5 key
+            if event.key() == Qt.Key.Key_F5:
                 self.refresh_all_data()
                 return True
-            elif event.modifiers() & 0x04000000 and event.key() == 82:  # Ctrl+R
+
+            if (event.modifiers() & Qt.KeyboardModifier.ControlModifier) and (
+                event.key() == Qt.Key.Key_R
+            ):
                 self.refresh_all_data()
                 return True
-            elif event.modifiers() & 0x04000000 and event.key() == 81:  # Ctrl+Q
+
+            if (event.modifiers() & Qt.KeyboardModifier.ControlModifier) and (
+                event.key() == Qt.Key.Key_Q
+            ):
                 QApplication.quit()
                 return True
-                
+                 
         except Exception as e:
             logger.error(f"Error handling keyboard shortcut: {e}")
         

@@ -20,6 +20,8 @@ from pathlib import Path
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any, Tuple
 
+from version import __app_name__, __version__, get_macos_bundle_versions
+
 
 class CommandRunner:
     """Utility class for running shell commands with proper error handling."""
@@ -1066,6 +1068,7 @@ class AppBundleBuilder:
             bool: True if successful, False otherwise
         """
         try:
+            bundle_versions = get_macos_bundle_versions()
             with open(self.contents_path / "Info.plist", "w") as f:
                 f.write(
                     f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -1089,9 +1092,9 @@ class AppBundleBuilder:
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>{bundle_versions['short_version']}</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>{bundle_versions['bundle_version']}</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSPrincipalClass</key>
@@ -1153,8 +1156,8 @@ class AppBundleBuilder:
             elif not config_json_path.exists():
                 # Fallback: create basic config only if no source config exists
                 basic_config = {
-                    "app_name": "Trainer",
-                    "version": "4.0.0",
+                    "app_name": __app_name__,
+                    "version": __version__,
                     "bundle_id": "com.oliverernster.trainer",
                     "data_dir": "~/.trainer_app"
                 }
@@ -1588,6 +1591,7 @@ class DMGVerifier:
         """
         print("\nVerifying DMG by mounting it...")
 
+        volume_path: Optional[str] = None
         try:
             volume_name = os.path.splitext(os.path.basename(dmg_path))[0]
 
@@ -1688,9 +1692,11 @@ class DMGVerifier:
             print(f"Error verifying DMG: {str(e)}")
             # Try to unmount anyway
             try:
-                CommandRunner.run_command(
-                    ["hdiutil", "detach", f"/Volumes/{volume_name}", "-force"]
-                )
+                if volume_path:
+                    CommandRunner.run_command(
+                        ["hdiutil", "detach", volume_path, "-force"],
+                        show_output=False,
+                    )
             except:
                 pass
             return False

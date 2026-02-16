@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from version import (
     __weather_version__,
+    __weather_config_schema_version__,
     __weather_api_provider__,
     __weather_api_url__,
     get_weather_info,
@@ -271,8 +272,8 @@ class WeatherConfigMigrator:
     @staticmethod
     def migrate_to_current_version(config_dict: dict) -> dict:
         """Migrate configuration to current version."""
-        current_version = __weather_version__
-        config_version = config_dict.get("config_version", "1.0.0")
+        current_version = __weather_config_schema_version__
+        config_version = config_dict.get("config_version", __weather_config_schema_version__)
 
         if config_version == current_version:
             return config_dict
@@ -297,8 +298,8 @@ class WeatherConfigMigrator:
     @staticmethod
     def is_migration_needed(config_dict: dict) -> bool:
         """Check if configuration needs migration."""
-        current_version = __weather_version__
-        config_version = config_dict.get("config_version", "1.0.0")
+        current_version = __weather_config_schema_version__
+        config_version = config_dict.get("config_version", __weather_config_schema_version__)
         return config_version != current_version
 
 

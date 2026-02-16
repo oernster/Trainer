@@ -16,6 +16,8 @@ from src.core.interfaces.i_data_repository import IDataRepository
 from src.core.models.station import Station
 from src.core.models.railway_line import RailwayLine, LineType, LineStatus
 
+from version import __routing_data_version__
+
 
 class JsonDataRepository(IDataRepository):
     """Repository implementation for JSON-based railway data."""
@@ -52,7 +54,7 @@ class JsonDataRepository(IDataRepository):
         self._line_name_to_line: Optional[Dict[str, RailwayLine]] = None
         
         # Data version and metadata
-        self._data_version = "1.0.0"
+        self._data_version = __routing_data_version__
         self._last_loaded: Optional[datetime] = None
         
         self.logger.info(f"Initialized JsonDataRepository with data directory: {self.data_directory}")

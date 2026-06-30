@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trainer: UK Train Times with Weather and Astronomy</title>
+<meta name="description" content="Trainer is a local-first desktop app for UK train times with integrated weather forecasts and astronomy. Real-time departures, route planning, a seven-day forecast and moon phases, with a dark Material theme. Windows, macOS and Linux.">
+<meta name="keywords" content="train times, UK railway, departures, route planning, weather forecast, astronomy, moon phases, PySide6, desktop app, Windows, macOS, Linux, local-first">
+<meta name="author" content="Oliver Ernster">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#1a1a1a">
+<link rel="canonical" href="https://oernster.github.io/Trainer/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Trainer">
+<meta property="og:title" content="Trainer: UK Train Times with Weather and Astronomy">
+<meta property="og:description" content="A local-first desktop app for UK train times with integrated weather forecasts and astronomy. Windows, macOS and Linux.">
+<meta property="og:url" content="https://oernster.github.io/Trainer/">
+<meta property="og:image" content="https://oernster.github.io/Trainer/assets/trainer.png">
+<meta property="og:image:alt" content="The Trainer application icon">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Trainer: UK Train Times with Weather and Astronomy">
+<meta name="twitter:description" content="A local-first desktop app for UK train times with integrated weather forecasts and astronomy. Windows, macOS and Linux.">
+<meta name="twitter:image" content="https://oernster.github.io/Trainer/assets/trainer.png">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="stylesheet" href="styles.css">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Trainer", "applicationCategory": "TravelApplication", "operatingSystem": "Windows, macOS, Linux", "description": "Trainer is a local-first desktop app for UK train times with integrated weather forecasts and astronomy. Real-time departures, route planning, a seven-day forecast and moon phases, with a dark Material theme.", "url": "https://oernster.github.io/Trainer/", "image": "https://oernster.github.io/Trainer/assets/trainer.png", "isAccessibleForFree": true, "offers": {"@type": "Offer", "price": "0", "priceCurrency": "GBP"}, "author": {"@type": "Person", "name": "Oliver Ernster", "url": "https://www.crankthecode.com/"}, "license": "https://www.gnu.org/licenses/gpl-3.0.html"}</script>
+</head>
+<body>
+<header class="nav">
+  <div class="container nav-inner">
+    <a class="brand" href="#top">
+      <img src="assets/trainer.png" alt="Trainer icon">Trainer</a>
+    <nav class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#screenshots">Screenshots</a>
+      <a href="#download">Download</a>
+      <a href="https://github.com/oernster/Trainer">GitHub</a>
+    </nav>
+  </div>
+</header>
+<main id="top">
+  <section class="hero">
+    <div class="container">
+      <img class="logo" src="assets/trainer.png" alt="Trainer icon">
+      <h1>Trainer</h1>
+      <div class="tagline">UK Train Times · Weather · Astronomy</div>
+      <p class="lede">A local-first desktop companion for the UK railway. Real-time
+        departures and route planning, with the weather for your journey and the night
+        sky above it, in one clean dark interface.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/oernster/Trainer/releases">Download</a>
+        <a class="btn btn-ghost" href="#features">See features</a>
+      </div>
+      <p class="release-note">Builds are published on the
+        <a href="https://github.com/oernster/Trainer/releases">releases page</a> as they ship.</p>
+      <div class="badges">
+        <span>Local-first</span>·<span>No API key for weather</span>
+        ·<span>GPL-3.0</span>·<span>Windows · macOS · Linux</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="features" class="alt">
+    <div class="container">
+      <div class="eyebrow">What it does</div>
+      <h2 class="section-title">Three things, done properly</h2>
+      <p class="section-sub">Trainer brings train times, weather and astronomy together
+        so you can plan a journey without leaving the app or handing over an API key.</p>
+      <div class="features">
+        <div class="feature">
+          <div class="fnum">01</div>
+          <h3>Train information</h3>
+          <p>Real-time departures across a wide window, with the detail you actually need.</p>
+          <ul>
+            <li>Platforms, delays, cancellations and operator</li>
+            <li>Route planning with interchange support</li>
+            <li>Calling points and full service detail</li>
+            <li>Automatic refresh at a configurable interval</li>
+          </ul>
+        </div>
+        <div class="feature">
+          <div class="fnum">02</div>
+          <h3>Weather integration</h3>
+          <p>The forecast for where you are going, with no account and no key.</p>
+          <ul>
+            <li>Current conditions and a seven-day outlook</li>
+            <li>Automatic location via Open-Meteo</li>
+            <li>Weather for the destination, not just home</li>
+            <li>Graceful handling when a service is down</li>
+          </ul>
+        </div>
+        <div class="feature">
+          <div class="fnum">03</div>
+          <h3>Astronomy</h3>
+          <p>The sky over your journey, calculated locally where it counts.</p>
+          <ul>
+            <li>Accurate moon phases with a hybrid service</li>
+            <li>A seven-day astronomical outlook</li>
+            <li>Sunrise, sunset and celestial events</li>
+            <li>No API keys required</li>
+          </ul>
+        </div>
+        <div class="feature">
+          <div class="fnum">04</div>
+          <h3>A considered desktop app</h3>
+          <p>Built to live on your machine and respect it.</p>
+          <ul>
+            <li>Dark and light themes, switched with a key</li>
+            <li>Full keyboard navigation</li>
+            <li>Local-first: your data stays on your machine</li>
+            <li>Native installers for every platform</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screenshots">
+    <div class="container">
+      <div class="eyebrow">A look inside</div>
+      <h2 class="section-title">See it in action</h2>
+      <p class="section-sub">The dark Material interface, with departures, the journey
+        forecast and the night sky side by side.</p>
+      <div class="shots">
+        <!-- Drop screenshots into docs/assets/screenshots/ and keep these filenames,
+             or tell me the names and I will wire them in with proper captions. -->
+        <figure class="shot">
+          <div class="frame">
+            <div class="bar"><i></i><i></i><i></i></div>
+            <img loading="lazy" src="assets/screenshots/trainer-main.png" alt="Trainer main window showing live train departures">
+          </div>
+          <figcaption><b>Departures.</b> Real-time train times with platforms, delays and
+            calling points in the main window.</figcaption>
+        </figure>
+        <figure class="shot">
+          <div class="frame">
+            <div class="bar"><i></i><i></i><i></i></div>
+            <img loading="lazy" src="assets/screenshots/trainer-weather.png" alt="Trainer weather view showing the journey forecast">
+          </div>
+          <figcaption><b>Weather.</b> Current conditions and a seven-day forecast for the
+            journey, with no API key required.</figcaption>
+        </figure>
+        <figure class="shot">
+          <div class="frame">
+            <div class="bar"><i></i><i></i><i></i></div>
+            <img loading="lazy" src="assets/screenshots/trainer-astronomy.png" alt="Trainer astronomy view showing moon phases and events">
+          </div>
+          <figcaption><b>Astronomy.</b> Moon phases, sunrise and sunset and a seven-day
+            astronomical outlook.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="download" class="alt">
+    <div class="container">
+      <div class="eyebrow">Get Trainer</div>
+      <h2 class="section-title">Install on your platform</h2>
+      <p class="section-sub">Grab a build from the
+        <a href="https://github.com/oernster/Trainer/releases">releases page</a>, or build
+        from source with the
+        <a href="https://github.com/oernster/Trainer/blob/main/DEVELOPMENT-README.md">development guide</a>.</p>
+      <div class="downloads">
+        <div class="dl-card">
+          <div class="os">Windows</div>
+          <h3>Per-user installer</h3>
+          <p>A graphical installer that needs no administrator rights, registers a normal
+            uninstall entry and adds shortcuts.</p>
+          <code>TrainerSetup.exe</code>
+          <a class="btn btn-primary" href="https://github.com/oernster/Trainer/releases">Download for Windows</a>
+        </div>
+        <div class="dl-card">
+          <div class="os">macOS</div>
+          <h3>Apple Silicon DMG</h3>
+          <p>A self-contained app bundle with Python and Qt frozen in, delivered as a
+            drag-to-install disk image.</p>
+          <code>trainer-macos-arm64.dmg</code>
+          <a class="btn btn-primary" href="https://github.com/oernster/Trainer/releases">Download for macOS</a>
+        </div>
+        <div class="dl-card">
+          <div class="os">Linux</div>
+          <h3>Flatpak</h3>
+          <p>A Flatpak bundle for the KDE runtime that runs on any modern desktop.</p>
+          <code>flatpak install --user trainer.flatpak</code>
+          <a class="btn btn-primary" href="https://github.com/oernster/Trainer/releases">Download for Linux</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+<footer>
+  <div class="container footer-inner">
+    <div>
+      <strong>Trainer</strong>: UK train times with weather and astronomy<br>
+      (c) 2026 Oliver Ernster · Local-first · GPL-3.0 · v<!--VERSION-->5.1.0<!--/VERSION-->
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/oernster/Trainer/releases">Releases</a>
+      <a href="https://github.com/oernster/Trainer">GitHub</a>
+      <a href="https://www.crankthecode.com/">crankthecode.com</a>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

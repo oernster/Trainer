@@ -55,6 +55,7 @@ from .main_window_components.theme import (
     apply_theme_to_all_widgets,
     get_theme_colors,
     on_theme_changed,
+    reapply_theme_after_init,
     setup_theme_system,
 )
 from .main_window_components.train_display import update_train_display
@@ -438,7 +439,11 @@ class MainWindow(QMainWindow):
         if self.initialization_manager:
             self.weather_manager = self.initialization_manager.weather_manager
             self.astronomy_manager = self.initialization_manager.astronomy_manager
-        
+
+        # Re-apply the full theme now that deferred panels exist (see theme.py),
+        # so the initial state matches the toggled state on GNOME and elsewhere.
+        reapply_theme_after_init(window=self)
+
         # Ensure menu states are synchronized with actual widget visibility after initialization
         QTimer.singleShot(50, self._final_menu_sync)
         logger.debug("Final menu sync scheduled after initialization completion")

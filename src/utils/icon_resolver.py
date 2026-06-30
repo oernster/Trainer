@@ -110,6 +110,23 @@ def _get_asset_directory_cached(
         except Exception:
             pass
 
+    # Method 2b: Beside the running executable. For a Nuitka standalone binary
+    # `sys.executable` is the compiled exe itself, so assets shipped via
+    # `--include-data-dir` sit in its directory. Nuitka does not set
+    # `sys.frozen`, so this is the reliable path for a Windows or Linux
+    # standalone build when `__compiled__.containing_dir` is unavailable.
+    if executable:
+        try:
+            exe_dir = Path(executable).resolve().parent
+            exe_assets = exe_dir / ASSETS_DIR_NAME
+            if exe_assets.exists() and exe_assets.is_dir():
+                logger.info(
+                    "Resolved assets directory via executable dir: %s", exe_assets
+                )
+                return exe_assets
+        except Exception:
+            pass
+
     # Method 3: PyInstaller (and other packagers) set `sys.frozen`.
     if frozen and executable:
         exe_dir = Path(executable).parent
@@ -134,17 +151,23 @@ def _get_asset_directory_cached(
             )
             return exe_assets
 
-    # Method 4: Nuitka macOS app bundle without relying on `__compiled__`.
+    # Method 4: Nuitka macOS app bundle without relying on `__compiled__` or
+    # `sys.frozen`. The binary lives in Contents/MacOS; data shipped via
+    # `--include-data-dir` may land beside it there or under Contents/Resources,
+    # so check both.
     if platform == _MACOS_PLATFORM and executable:
-        exe_dir = Path(executable).parent
+        exe_dir = Path(executable).resolve().parent
         if exe_dir.name == _MACOS_EXE_PARENT_NAME:
-            macos_assets = exe_dir / ASSETS_DIR_NAME
-            if macos_assets.exists() and macos_assets.is_dir():
-                logger.info(
-                    "Resolved assets directory via macOS app bundle MacOS/assets: %s",
-                    macos_assets,
-                )
-                return macos_assets
+            for candidate in (
+                exe_dir / ASSETS_DIR_NAME,
+                exe_dir.parent / _MACOS_RESOURCES_NAME / ASSETS_DIR_NAME,
+            ):
+                if candidate.exists() and candidate.is_dir():
+                    logger.info(
+                        "Resolved assets directory via macOS app bundle: %s",
+                        candidate,
+                    )
+                    return candidate
 
     # Method 5: Development environment. This file is in src/utils/, so the repo
     # root is two levels up and assets live at repo_root/assets.

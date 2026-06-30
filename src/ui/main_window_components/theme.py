@@ -99,3 +99,19 @@ def on_theme_changed(*, window, theme_name: str) -> None:
     window.theme_changed.emit(theme_name)
     logger.info("Theme changed to %s", theme_name)
 
+
+def reapply_theme_after_init(*, window) -> None:
+    """Re-apply the full theme once deferred widgets exist.
+
+    Panels created during the optimized (deferred) initialization are styled via
+    the theme_changed cascade, which startup does not emit, so without this a
+    panel can come up in the default palette (white on a light system theme such
+    as GNOME) until the user toggles the theme. This mirrors a manual toggle and
+    makes the initial state match the toggled state.
+    """
+
+    try:
+        on_theme_changed(window=window, theme_name=window.theme_manager.current_theme)
+    except Exception as exc:
+        logger.warning("Failed to re-apply theme after initialization: %s", exc)
+

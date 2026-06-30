@@ -9,7 +9,7 @@ import logging
 import sys
 from pathlib import Path
 from PySide6.QtWidgets import QSplashScreen, QLabel, QVBoxLayout, QWidget, QApplication
-from PySide6.QtCore import Qt, QTimer, QPoint
+from PySide6.QtCore import Qt, QTimer, QPoint, QRect
 from PySide6.QtGui import QPixmap, QPainter, QFont
 
 from src.utils.icon_resolver import get_app_icon_png_path, get_app_icon_path
@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 SPLASH_WIDTH = 400
 SPLASH_HEIGHT = 300
 SPLASH_ICON_PX = 96
+# Distance from the top of the splash to the top of the icon badge.
+SPLASH_ICON_TOP = 36
 
 
 class TrainerSplashScreen(QSplashScreen):
@@ -120,19 +122,16 @@ class TrainerSplashScreen(QSplashScreen):
         # Calculate center position for main content
         center_y = self.rect().height() // 2
         
-        # Draw the application icon centered, falling back to a glyph if missing
-        icon_rect = self.rect().adjusted(0, center_y - 90, 0, center_y - 40)
+        # Draw the application icon near the top, horizontally centred, so the
+        # title and the rest of the text sit below it. Fall back to a glyph if
+        # the icon could not be loaded.
+        icon_rect = QRect(0, SPLASH_ICON_TOP, self.rect().width(), SPLASH_ICON_PX)
         if self._icon_pixmap is not None and not self._icon_pixmap.isNull():
-            center = icon_rect.center()
             # The pixmap carries a device pixel ratio, so its on-screen size is
-            # the device-independent size; centre using that, not the raw pixels.
+            # the device-independent size; place it using that, not raw pixels.
             logical_w = self._icon_pixmap.width() / self._icon_pixmap.devicePixelRatio()
-            logical_h = self._icon_pixmap.height() / self._icon_pixmap.devicePixelRatio()
-            painter.drawPixmap(
-                int(center.x() - logical_w / 2),
-                int(center.y() - logical_h / 2),
-                self._icon_pixmap,
-            )
+            x = int((self.rect().width() - logical_w) / 2)
+            painter.drawPixmap(x, SPLASH_ICON_TOP, self._icon_pixmap)
         else:
             painter.setPen(Qt.GlobalColor.white)
             emoji_font = QFont()
@@ -140,7 +139,11 @@ class TrainerSplashScreen(QSplashScreen):
             painter.setFont(emoji_font)
             painter.drawText(icon_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, "🚂")
         
-        # Draw title below emoji with more spacing
+        # Text is white so it reads on the black background. The icon branch
+        # leaves the pen on the blue border colour, so set it explicitly here.
+        painter.setPen(Qt.GlobalColor.white)
+
+        # Draw title below the icon with more spacing
         title_font = QFont()
         title_font.setPointSize(24)
         title_font.setBold(True)

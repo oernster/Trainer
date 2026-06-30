@@ -7,7 +7,7 @@
 A modern PySide6 desktop application that displays real-time train departure information with integrated weather forecasting and astronomical events. Features include a dark theme, automatic refresh, and a clean architecture following SOLID principles and modern design patterns.
 
 ![Python](https://img.shields.io/badge/python-3.8+-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)
 ![Architecture](https://img.shields.io/badge/architecture-SOLID%20OOP-brightgreen.svg)
 
 ## Quick Start
@@ -226,7 +226,7 @@ trainer/
 
 ## License
 
-This project is licensed under the MIT License. See the LICENSE file for details.
+This project is licensed under the GPL-3.0 License. See the LICENSE file for details. The bundled Qt/PySide6 user interface layer is provided under LGPL-3.0; see licenses/LGPL-3.0.txt.
 
 ## Author
 

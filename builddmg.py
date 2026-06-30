@@ -11,7 +11,8 @@ different interpreter version (which can break compiled wheels such as
 
 Outputs
 -------
-- `trainer-macos-arm64.dmg`
+- `trainer-macos-arm64.dmg` (codesigned; notarized + stapled when credentials
+  are provided, otherwise signed-only)
 
 Prereqs
 -------
@@ -19,6 +20,13 @@ Prereqs
 - Python environment with dependencies installed (see requirements.txt)
 - Nuitka installed (see requirements.txt)
 - Optional: `create-dmg` installed for a styled DMG (falls back to `hdiutil`)
+
+Code signing and notarization
+-----------------------------
+The bundle and DMG are codesigned with the hardened runtime. Override the
+identity via `DEVELOPER_ID_APPLICATION`. Notarization + stapling run only when
+both `APPLE_ID` and `APPLE_APP_PASSWORD` are set (with `APPLE_TEAM_ID`); without
+them the build still produces a signed-but-not-notarized DMG for local use.
 """
 
 from __future__ import annotations
@@ -33,6 +41,32 @@ from dataclasses import dataclass
 from pathlib import Path
 import tempfile
 from typing import Iterable, Optional
+
+
+# Code-signing identity and notarization credentials. All overridable via env so
+# the script signs with the real Developer ID in CI/release and stays runnable
+# (unsigned) for local-only builds when the credentials are absent.
+DEVELOPER_ID = os.environ.get(
+    "DEVELOPER_ID_APPLICATION",
+    "Developer ID Application: Oliver Ernster (W7K465GKFJ)",
+)
+APPLE_ID = os.environ.get("APPLE_ID", "")
+APPLE_APP_PASSWORD = os.environ.get("APPLE_APP_PASSWORD", "")
+APPLE_TEAM_ID = os.environ.get("APPLE_TEAM_ID", "W7K465GKFJ")
+
+# Minimal entitlements: allow the hardened runtime to load the our-identity-signed
+# bundled Qt frameworks (Trainer is not a QtWebEngine app, so no JIT entitlements).
+_ENTITLEMENTS_XML = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" \
+"http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+</dict>
+</plist>
+"""
 
 
 @dataclass(frozen=True)
@@ -149,9 +183,8 @@ def _set_custom_file_icon(*, target_path: Path, icon_icns: Path) -> None:
             with tempfile.TemporaryDirectory() as td:
                 rsrc_path = Path(td) / "icon.rsrc"
 
-                # Extract icon resources from the .icns.
-                _run([derez_path, "-only", "icns", str(icon_icns)], cwd=Path(td))
-                # DeRez outputs to stdout by default; capture and write to file.
+                # Extract icon resources from the .icns to a resource file.
+                # DeRez writes to stdout, so capture and persist it.
                 rsrc_bytes = subprocess.check_output(
                     [derez_path, "-only", "icns", str(icon_icns)],
                     stderr=subprocess.STDOUT,
@@ -445,7 +478,10 @@ def create_dmg(cfg: BuildConfig, app_bundle: Path) -> Path:
     staged_app = cfg.staging_dir / app_bundle.name
     if staged_app.exists():
         _rm_rf(staged_app)
-    shutil.copytree(app_bundle, staged_app)
+    # Use `ditto`, not `shutil.copytree`: it preserves framework symlinks and
+    # extended attributes so the embedded code signature stays valid. Copytree
+    # can dereference symlinks, which invalidates the signature.
+    _run(["ditto", str(app_bundle), str(staged_app)])
 
     # Optional background.
     _rm_rf(cfg.background_path)
@@ -553,6 +589,111 @@ def create_dmg(cfg: BuildConfig, app_bundle: Path) -> Path:
     return dmg_path
 
 
+def _write_entitlements() -> Path:
+    """Write the hardened-runtime entitlements to a temp file for codesign."""
+
+    fd, name = tempfile.mkstemp(prefix="trainer_", suffix=".entitlements")
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(_ENTITLEMENTS_XML)
+    return Path(name)
+
+
+def _strip_stray_object_files(app_bundle: Path) -> None:
+    """Remove PySide6's `.o` Mach-O object files before signing.
+
+    PySide6 ships `.cpp.o` object files in its QML plugin dirs. `codesign
+    --deep` silently skips them and Gatekeeper then rejects the bundle as
+    containing unsigned code. Remove every `*.o` and any now-empty
+    `objects-*` dirs left behind.
+    """
+
+    removed = 0
+    for obj in app_bundle.rglob("*.o"):
+        try:
+            obj.unlink()
+            removed += 1
+        except OSError as exc:
+            print(f"Warning: could not remove {obj}: {exc}")
+    # Deepest-first so a parent empties before we try to remove it.
+    object_dirs = sorted(
+        app_bundle.rglob("objects-*"),
+        key=lambda p: len(p.parts),
+        reverse=True,
+    )
+    for d in object_dirs:
+        if d.is_dir() and not any(d.iterdir()):
+            try:
+                d.rmdir()
+            except OSError:
+                pass
+    print(f"Stripped {removed} stray *.o object file(s) before signing")
+
+
+def _sign_bundle(app_bundle: Path, entitlements: Path) -> None:
+    """Codesign the .app with the hardened runtime, then verify."""
+
+    print("=== Codesigning app bundle ===")
+    _run(
+        [
+            "codesign",
+            "--force",
+            "--deep",
+            "--options",
+            "runtime",
+            "--entitlements",
+            str(entitlements),
+            "--sign",
+            DEVELOPER_ID,
+            str(app_bundle),
+        ]
+    )
+    _run(["codesign", "--verify", "--deep", "--strict", str(app_bundle)])
+
+
+def _sign_dmg(dmg_path: Path) -> None:
+    print("=== Codesigning DMG ===")
+    _run(["codesign", "--force", "--sign", DEVELOPER_ID, str(dmg_path)])
+
+
+def _notarize_and_staple(dmg_path: Path) -> None:
+    """Submit the DMG for notarization and staple the ticket.
+
+    Gated on credentials: with APPLE_ID / APPLE_APP_PASSWORD unset this is a
+    no-op, so a local build still produces a signed-but-not-notarized DMG.
+    """
+
+    if not (APPLE_ID and APPLE_APP_PASSWORD):
+        print(
+            "Skipping notarization: set APPLE_ID and APPLE_APP_PASSWORD "
+            "(and optionally APPLE_TEAM_ID) to enable it."
+        )
+        return
+
+    print("=== Notarizing DMG (this can take several minutes) ===")
+    _run(
+        [
+            "xcrun",
+            "notarytool",
+            "submit",
+            str(dmg_path),
+            "--apple-id",
+            APPLE_ID,
+            "--password",
+            APPLE_APP_PASSWORD,
+            "--team-id",
+            APPLE_TEAM_ID,
+            "--wait",
+        ]
+    )
+    print("=== Stapling notarization ticket ===")
+    _run(["xcrun", "stapler", "staple", str(dmg_path)])
+
+
+def _verify_dmg(dmg_path: Path) -> None:
+    print("=== Verifying DMG signature ===")
+    _run(["codesign", "--verify", "--verbose=2", str(dmg_path)])
+
+
 def main(argv: Optional[Iterable[str]] = None) -> int:
     _ = argv  # reserved for future CLI flags.
 
@@ -566,10 +707,16 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     _warn_if_running_in_venv()
 
     cfg = BuildConfig()
+    entitlements = _write_entitlements()
 
     try:
         app_bundle = build_app_bundle(cfg)
+        _strip_stray_object_files(app_bundle)
+        _sign_bundle(app_bundle, entitlements)
         dmg = create_dmg(cfg, app_bundle)
+        _sign_dmg(dmg)
+        _notarize_and_staple(dmg)
+        _verify_dmg(dmg)
         print("=== Done ===")
         print(f"Output DMG: {dmg}")
         return 0
@@ -579,6 +726,8 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     except Exception as e:
         print(f"Build failed: {e}")
         return 1
+    finally:
+        _rm_rf(entitlements)
 
 
 if __name__ == "__main__":

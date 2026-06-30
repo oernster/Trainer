@@ -156,7 +156,7 @@ def _exe_reported_version() -> str:
     output = (result.stdout or "").strip().splitlines()
     if not output:
         return ""
-    # The exe prints "Trainer 5.1.2"; keep the trailing version token.
+    # The exe prints "Trainer 5.1.3"; keep the trailing version token.
     tokens = output[-1].split()
     return tokens[-1] if tokens else ""
 

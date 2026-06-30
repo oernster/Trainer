@@ -35,16 +35,14 @@ ICO_SIZES = (16, 24, 32, 48, 64, 128, 256)
 # The canonical badge size used by code paths that want one PNG.
 CANONICAL_PNG_SIZE = 256
 
-# Fraction of the square canvas the solid artwork should occupy along its
-# longest axis. The remainder is a uniform transparent margin. Keeping the
-# glyph close to the edge (matching typical Windows app icons) is what stops it
-# rendering small on the taskbar next to icons that fill their canvas.
-CONTENT_FILL_RATIO = 0.88
+# Fraction of the square tile the badge occupies along its longest axis. The
+# whole badge is scaled up to fill this much of the canvas, leaving a small
+# uniform transparent border, so the icon reads big on the taskbar.
+CONTENT_FILL_RATIO = 0.92
 
-# Alpha (0-255) above which a pixel counts as solid artwork when measuring the
-# crop box. Faint anti-alias fringes, glows and drop shadows fall below this, so
-# a soft halo around the glyph does not defeat the trim.
-ALPHA_TRIM_THRESHOLD = 8
+# Alpha (0-255) above which a pixel counts as opaque artwork rather than the
+# transparent surround.
+OPAQUE_ALPHA = 8
 
 ICO_NAME = "trainer.ico"
 ICNS_NAME = "trainer.icns"
@@ -53,36 +51,35 @@ CANONICAL_PNG_NAME = "trainer_icon.png"
 RESAMPLE = Image.Resampling.LANCZOS
 
 
-def _trim_to_square(img: Image.Image) -> Image.Image:
-    """Trim the transparent border and re-pad to a square canvas.
+def _frame_badge(img: Image.Image) -> Image.Image:
+    """Trim the transparent surround and scale the whole badge to fill the tile.
 
-    The opaque content is scaled (via the surrounding margin, not by resampling)
-    to fill ``CONTENT_FILL_RATIO`` of the canvas along its longest axis, so the
-    visible glyph is as large as the standard icon margin allows.
+    The complete badge (its rounded corners and every motif in their original
+    arrangement) is kept intact and reframed to fill ``CONTENT_FILL_RATIO`` of a
+    square canvas, leaving a small uniform transparent border around it.
     """
-    alpha = img.split()[-1]
-    solid = alpha.point(lambda v: 255 if v > ALPHA_TRIM_THRESHOLD else 0)
+    solid = img.split()[-1].point(lambda v: 255 if v > OPAQUE_ALPHA else 0)
     bbox = solid.getbbox()
     if bbox is None:
         return img
-    content = img.crop(bbox)
-    content_w, content_h = content.size
-    side = round(max(content_w, content_h) / CONTENT_FILL_RATIO)
+    badge = img.crop(bbox)
+    badge_w, badge_h = badge.size
+    side = round(max(badge_w, badge_h) / CONTENT_FILL_RATIO)
     canvas = Image.new("RGBA", (side, side), (0, 0, 0, 0))
-    offset = ((side - content_w) // 2, (side - content_h) // 2)
-    canvas.paste(content, offset, content)
+    offset = ((side - badge_w) // 2, (side - badge_h) // 2)
+    canvas.alpha_composite(badge, offset)
     return canvas
 
 
 def _load_master() -> Image.Image:
-    """Load the master PNG as a tightly-framed square RGBA image."""
+    """Load the master PNG and frame the whole badge with a small border."""
     if not MASTER_PNG.exists():
         print(f"Error: master icon not found: {MASTER_PNG}")
         print("Place a square (ideally 1024x1024) trainer.png at the repo root.")
         raise SystemExit(1)
 
     img = Image.open(MASTER_PNG).convert("RGBA")
-    return _trim_to_square(img)
+    return _frame_badge(img)
 
 
 def _resized(master: Image.Image, size: int) -> Image.Image:

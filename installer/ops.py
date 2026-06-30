@@ -28,6 +28,7 @@ import registry
 import shortcuts
 from constants import (
     APP_NAME,
+    BUNDLED_VERSION_FILE_NAME,
     DEFERRED_DELETE_ATTEMPTS,
     DEFERRED_DELETE_INTERVAL_MS,
     ENV_LOCALAPPDATA,
@@ -101,12 +102,41 @@ def installer_licence_text() -> str:
     return INSTALLER_LICENSE_FALLBACK
 
 
-def app_version() -> str:
-    """Return the bundled application version by running the deployed exe.
+def bundled_version_file() -> Path:
+    """Return the path to the build-stamped bundled-version text file."""
+    return bundle_root() / PAYLOAD_DIR_NAME / BUNDLED_VERSION_FILE_NAME
 
-    Trainer carries no VERSION file; its main entry supports a fast --version
-    early-exit. We ask the bundled exe (when present) for its version, falling
-    back to an empty string when it cannot be queried.
+
+def app_version() -> str:
+    """Return the bundled application version.
+
+    buildinstaller.py stamps the version into a small text file
+    (BUNDLED_VERSION_FILE_NAME) inside the payload. That file is read first,
+    because the bundled exe cannot be queried in a onefile installer: Nuitka
+    strips the loose exe out of the embedded payload, leaving it only inside the
+    deploy zip. The exe query is kept as a fallback for layouts where the bundle
+    is present unpacked (for example local testing against an extracted
+    payload). An empty string is returned when neither source is available.
+    """
+    stamped = _stamped_version()
+    if stamped:
+        return stamped
+    return _exe_reported_version()
+
+
+def _stamped_version() -> str:
+    """Return the build-stamped bundled version, or '' when not present."""
+    try:
+        return bundled_version_file().read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def _exe_reported_version() -> str:
+    """Return the version the bundled exe reports via --version, or ''.
+
+    Fallback only: in a onefile installer the loose exe is stripped from the
+    payload, so this returns '' there.
     """
     exe = payload_app_dir() / EXE_NAME
     if not exe.is_file():

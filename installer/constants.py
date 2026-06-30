@@ -34,6 +34,13 @@ EXE_NAME = "trainer.exe"
 # executables and DLLs from an included data directory; the installer extracts
 # this archive on deploy.
 PAYLOAD_ARCHIVE_NAME = "Trainer.zip"
+# A plain-text file stamped with the bundled application version at installer
+# build time, read by the installer to show its version and to drive the
+# upgrade/reinstall decision. It exists because the bundled exe cannot be
+# queried for its version: Nuitka's onefile build strips the loose exe out of
+# the embedded payload (it survives only inside the zip above), whereas a text
+# file in the payload survives verbatim.
+BUNDLED_VERSION_FILE_NAME = "app_version.txt"
 # The bundled icon used for the installer window, dialogs and the badge. Trainer
 # ships its assets under an assets subdirectory in the bundle, so the icons live
 # beside the railway data rather than at the bundle root.

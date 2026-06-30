@@ -75,6 +75,10 @@ INSTALLER_ENTRY = INSTALLER_DIR / "app.py"
 PAYLOAD_DIR_NAME = "payload"
 PAYLOAD_STAGE_DIR = INSTALLER_DIR / PAYLOAD_DIR_NAME
 APP_BUNDLE_DIR = PAYLOAD_STAGE_DIR / APP_DISPLAY_NAME
+# Mirrors installer/constants.py BUNDLED_VERSION_FILE_NAME: the version is
+# stamped into this payload text file at build time because the bundled exe is
+# stripped from the onefile payload and so cannot be queried at runtime.
+BUNDLED_VERSION_FILE_NAME = "app_version.txt"
 
 # Staging + output locations. The installer is compiled into a temporary dist
 # folder and then moved into place, so a running copy of an older installer
@@ -178,6 +182,17 @@ def stage_payload() -> None:
         archive_base, "zip", root_dir=str(APP_BUNDLE_DIR)
     )
     print(f"[buildinstaller] Archived bundle for deploy: {archive_path}")
+
+    # Stamp the bundled version into a payload text file. The installer reads
+    # this (the loose exe is stripped from the onefile payload and cannot be
+    # queried), so it can show its version and decide install vs upgrade.
+    version = read_version()
+    version_file = PAYLOAD_STAGE_DIR / BUNDLED_VERSION_FILE_NAME
+    version_file.write_text(version, encoding="utf-8")
+    print(
+        f"[buildinstaller] Stamped bundled version {version} into "
+        f"{version_file.name}"
+    )
 
     if LICENSE_FILE.exists():
         shutil.copy2(LICENSE_FILE, PAYLOAD_STAGE_DIR / "LICENSE")

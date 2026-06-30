@@ -10,8 +10,6 @@ A modern PySide6 desktop application that displays real-time train departure inf
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Architecture](https://img.shields.io/badge/architecture-SOLID%20OOP-brightgreen.svg)
 
-## Screenshots
-
 ## Quick Start
 
 ### Prerequisites

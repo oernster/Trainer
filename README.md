@@ -1,4 +1,4 @@
-# Trainer - Train Times with Weather Integration & Astronomical Events
+# <img width="64" height="64" alt="trainer" src="https://github.com/user-attachments/assets/86addb29-c331-4644-a20a-39dc4c30f718" /> Trainer - Train Times with Weather Integration & Astronomical Events
 
 **Author: Oliver Ernster**
 
@@ -7,15 +7,8 @@
 A modern PySide6 desktop application that displays real-time train departure information with integrated weather forecasting and astronomical events. Features include a dark theme, automatic refresh, and a clean architecture following SOLID principles and modern design patterns.
 
 ![Python](https://img.shields.io/badge/python-3.8+-blue.svg)
-![PySide6](https://img.shields.io/badge/PySide6-6.5+-green.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Architecture](https://img.shields.io/badge/architecture-SOLID%20OOP-brightgreen.svg)
-
-## Screenshots
-<img width="1098" height="1230" src="https://github.com/user-attachments/assets/207e67b4-f8a4-4748-a01e-31f406686553" />
-<img width="896" height="862" src="https://github.com/user-attachments/assets/a53fe595-726e-45d8-80ea-a8df73de1006" />
-<img width="895" height="853" src="https://github.com/user-attachments/assets/141d3def-2efd-479d-90cd-01b9d2eedc05" />
-<img width="745" height="581" src="https://github.com/user-attachments/assets/06b6e1f3-49da-41ea-9fc6-af7a7e48df8b" />
 
 ## Quick Start
 

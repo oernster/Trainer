@@ -201,6 +201,8 @@ section.alt {
   max-width: 760px;
 }
 .shot figcaption b { color: var(--text); }
+.shot.portrait .frame { max-width: 560px; margin: 0 auto; }
+.shot.portrait figcaption { max-width: 560px; margin: 16px auto 0; text-align: center; }
 
 .downloads {
   display: grid;

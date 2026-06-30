@@ -1,4 +1,4 @@
-# Trainer - Train Times with Weather Integration & Astronomical Events
+# <img width="64" height="64" alt="trainer" src="https://github.com/user-attachments/assets/86addb29-c331-4644-a20a-39dc4c30f718" /> Trainer - Train Times with Weather Integration & Astronomical Events
 
 **Author: Oliver Ernster**
 

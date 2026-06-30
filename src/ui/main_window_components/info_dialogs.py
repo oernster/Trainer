@@ -9,8 +9,12 @@ from PySide6.QtWidgets import QMessageBox
 from version import get_about_text
 
 from src.ui.widgets.about_dialog import AboutDialog
+from src.utils.icon_resolver import get_app_icon_png_path, get_app_icon_path
 
 logger = logging.getLogger(__name__)
+
+# Size of the About icon badge requested from the PNG asset set.
+ABOUT_ICON_PNG_SIZE = 256
 
 
 def show_about_dialog(*, window) -> None:
@@ -19,7 +23,14 @@ def show_about_dialog(*, window) -> None:
     config_path = window.config_manager.config_path
 
     about_html = get_about_text()
-    dialog = AboutDialog(parent=window, about_html=about_html, config_path=str(config_path), title="About")
+    icon_path = get_app_icon_png_path(ABOUT_ICON_PNG_SIZE) or get_app_icon_path()
+    dialog = AboutDialog(
+        parent=window,
+        about_html=about_html,
+        config_path=str(config_path),
+        title="About",
+        icon_path=str(icon_path) if icon_path else None,
+    )
     dialog.exec()
 
 

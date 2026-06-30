@@ -32,20 +32,24 @@ pip install -r requirements.txt
 python3 main.py  # Windows: python main.py
 ```
 
-### Building Executable
+### Building the Windows executable and installer
 ```bash
-python build.py
+python buildexe.py        # Nuitka standalone bundle into installer/payload/Trainer/
+python buildinstaller.py  # wraps the bundle as dist-installer/TrainerSetup.exe
 ```
 
-### Building macOS DMG (Apple Silicon)
+### Building the Linux Flatpak
+```bash
+./build_flatpak.sh        # produces trainer.flatpak
+```
 
-The legacy DMG script [`builddmg.py`](builddmg.py:1) can fail at runtime due to
-Python/package ABI mismatches (e.g. compiled wheels like `pydantic_core`).
+### Building the macOS DMG (Apple Silicon)
 
-The recommended macOS distribution path is the Nuitka-based DMG builder:
+The Nuitka-based DMG builder freezes Python and PySide6 into the app bundle, so
+it does not depend on the system interpreter or a mismatched site-packages:
 
 ```bash
-python3 builddmgnuitka.py
+python3 builddmg.py
 ```
 
 This produces:
@@ -142,7 +146,12 @@ trainer/
 ├── config.json
 ├── README.md
 ├── version.py
-├── build.py
+├── buildexe.py
+├── buildinstaller.py
+├── builddmg.py
+├── build_flatpak.sh
+├── clean_flatpak.sh
+├── generate_icons.py
 ├── REFACTORING_DOCUMENTATION.md
 ├── docs/
 │   ├── architecture.md

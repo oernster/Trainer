@@ -286,43 +286,25 @@ class UILayoutManager:
         logger.debug("Main UI setup completed")
     
     def setup_application_icon(self) -> None:
-        """Setup application icon using Unicode train emoji."""
-        from PySide6.QtGui import QPixmap, QPainter, QFont, QIcon
-        from PySide6.QtCore import Qt
+        """Setup application icon from the bundled Trainer icon assets."""
+        from PySide6.QtGui import QIcon
         from version import __app_display_name__
-        
-        # Set window title without emoji (emoji is already in the window icon)
+        from src.utils.icon_resolver import get_app_icon_path
+
+        # Set window title (icon is set separately below)
         self.main_window.setWindowTitle(__app_display_name__)
-        
-        # Create and set window icon from emoji
+
+        # Set window icon from the generated icon assets
         try:
-            # Create a pixmap for the icon
-            pixmap = QPixmap(64, 64)
-            pixmap.fill(Qt.GlobalColor.transparent)
-            
-            # Paint the emoji onto the pixmap
-            painter = QPainter(pixmap)
-            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            
-            # Set up font for emoji
-            font = QFont()
-            font.setPointSize(48)
-            painter.setFont(font)
-            painter.setPen(Qt.GlobalColor.black)
-            
-            # Draw the train emoji centered
-            painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, "🚂")
-            painter.end()
-            
-            # Create icon and set it
-            icon = QIcon(pixmap)
-            self.main_window.setWindowIcon(icon)
-            
-            logger.debug("Window icon set using Unicode train emoji")
-            
+            path = get_app_icon_path()
+            if path:
+                self.main_window.setWindowIcon(QIcon(str(path)))
+                logger.debug("Window icon set from %s", path)
+            else:
+                logger.warning("No window icon asset found, using default")
+
         except Exception as e:
-            logger.warning(f"Failed to create emoji window icon: {e}")
-            logger.info("Using Unicode train emoji in window title only")
+            logger.warning(f"Failed to set window icon: {e}")
     
     def setup_menu_bar(self) -> None:
         """Setup application menu bar."""

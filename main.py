@@ -344,42 +344,22 @@ def setup_logging():
 
 def setup_application_icon(app: QApplication):
     """
-    Setup application icon using Unicode train emoji.
+    Setup application icon from the bundled Trainer icon assets.
 
     Args:
         app: QApplication instance
     """
-    from PySide6.QtGui import QPixmap, QPainter, QFont
-    from PySide6.QtCore import Qt
-    
-    # Create a simple icon from the train emoji
+    from src.utils.icon_resolver import get_app_icon_path
+
     try:
-        # Create a pixmap for the icon
-        pixmap = QPixmap(64, 64)
-        pixmap.fill(Qt.GlobalColor.transparent)
-        
-        # Paint the emoji onto the pixmap
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
-        # Set up font for emoji - use system font that supports emojis
-        font = QFont()
-        font.setPointSize(44)  # Slightly smaller to ensure it fits
-        font.setFamily("Apple Color Emoji")  # macOS emoji font
-        painter.setFont(font)
-        painter.setPen(Qt.GlobalColor.black)
-        
-        # Draw the train emoji centered
-        painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, "🚂")
-        painter.end()
-        
-        # Create icon and set it
-        icon = QIcon(pixmap)
-        app.setWindowIcon(icon)
-        
-        
+        path = get_app_icon_path()
+        if path:
+            app.setWindowIcon(QIcon(str(path)))
+            logging.debug("Application icon set from %s", path)
+        else:
+            logging.warning("No application icon asset found, using default")
     except Exception as e:
-        logging.warning(f"Failed to create emoji icon, using default: {e}")
+        logging.warning(f"Failed to set application icon, using default: {e}")
 
 class SingleInstanceApplication(QApplication):
     """QApplication subclass that enforces single instance with dual protection."""

@@ -165,13 +165,20 @@ class DialogManager:
         """
         from version import get_about_text
         from src.ui.widgets.about_dialog import AboutDialog
+        from src.utils.icon_resolver import (
+            get_app_icon_png_path,
+            get_app_icon_path,
+        )
 
+        about_icon_png_size = 256
         about_html = get_about_text()
+        icon_path = get_app_icon_png_path(about_icon_png_size) or get_app_icon_path()
         dialog = AboutDialog(
             parent=self.main_window,
             about_html=about_html,
             config_path=config_path,
             title="About",
+            icon_path=str(icon_path) if icon_path else None,
         )
         dialog.exec()
     

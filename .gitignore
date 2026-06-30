@@ -216,3 +216,30 @@ src/cache/station_data.cache
 generate_scripts.py
 ALL_SOURCES.txt
 repo
+
+# ── Build artifacts (all platforms) ──────────────────────────────────────────
+# Coverage data (regenerated each test run)
+coverage.json
+.pytest_cache/
+
+# Nuitka intermediate trees (any entrypoint)
+*.build/
+*.dist/
+*.onefile-build/
+
+# Windows: standalone bundle and onefile installer (buildexe.py / buildinstaller.py)
+dist-installer/
+dist-installer.build/
+installer/payload/
+
+# Linux: Flatpak (build_flatpak.sh) generated manifest, helpers and build trees
+*.flatpak
+com.oliverernster.Trainer.yml
+packaging/
+.flatpak-build/
+.flatpak-repo/
+.flatpak-builder/
+.flatpak-wheels/
+
+# macOS: DMG (builddmg.py)
+*.dmg

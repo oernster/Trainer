@@ -3,13 +3,11 @@
 
 Why this exists
 ---------------
-The legacy DMG builder [`builddmg.py`](builddmg.py:1) constructs an app bundle
-that executes the *system* Python at runtime, while also bundling a
-`site-packages/` built for a different interpreter version. That can break
-compiled wheels (e.g. `pydantic_core`) at runtime.
-
-This script builds a self-contained macOS `.app` bundle using Nuitka, then
-creates a drag-to-install DMG.
+This builds a self-contained macOS `.app` bundle with Nuitka. The bundled
+Python and PySide6 are frozen into the app, so it does not execute the system
+Python at runtime and does not rely on a `site-packages/` built for a
+different interpreter version (which can break compiled wheels such as
+`pydantic_core`). It then creates a drag-to-install DMG.
 
 Outputs
 -------
@@ -45,7 +43,7 @@ class BuildConfig:
     dmg_filename: str = "trainer-macos-arm64.dmg"
     volume_name: str = "Install Trainer"
     entrypoint: Path = Path("main.py")
-    icon_path: Path = Path("assets/trainer_icon.png")
+    icon_path: Path = Path("assets/trainer_icon_1024.png")
     include_data_dir_src_data: str = "src/data=src/data"
     include_data_dir_assets: str = "assets=assets"
     output_dir: Path = Path("dist_macos_arm64")

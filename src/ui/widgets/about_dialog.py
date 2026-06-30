@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Optional
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QGuiApplication, QPixmap
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -23,9 +23,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+# Side length in pixels of the square app-icon badge shown at the top.
+ICON_BADGE_PX = 96
+
 
 class AboutDialog(QDialog):
-    """Scrollable About dialog with an optional config-path footer."""
+    """Scrollable About dialog with an optional icon badge and config-path footer."""
 
     def __init__(
         self,
@@ -34,6 +37,7 @@ class AboutDialog(QDialog):
         about_html: str,
         config_path: Optional[str] = None,
         title: str = "About",
+        icon_path: Optional[str] = None,
     ) -> None:
         super().__init__(parent)
 
@@ -54,6 +58,22 @@ class AboutDialog(QDialog):
         reserve_px = max((grip_px * 2) + 12, 56)
         layout.setContentsMargins(base_margin, base_margin, base_margin + reserve_px, base_margin + reserve_px)
         layout.setSpacing(12)
+
+        # Optional app-icon badge centred at the top, above the body.
+        self._icon_label: Optional[QLabel] = None
+        if icon_path:
+            pixmap = QPixmap(icon_path)
+            if not pixmap.isNull():
+                scaled = pixmap.scaled(
+                    ICON_BADGE_PX,
+                    ICON_BADGE_PX,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                self._icon_label = QLabel(self)
+                self._icon_label.setPixmap(scaled)
+                self._icon_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+                layout.addWidget(self._icon_label, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         self._browser = QTextBrowser(self)
         self._browser.setOpenExternalLinks(True)

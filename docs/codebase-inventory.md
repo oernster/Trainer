@@ -74,6 +74,6 @@ Synthetic train determinism: [`python.TrainDataService._build_deterministic_rng(
 
 This repository contains a small number of developer-oriented helper scripts.
 
-- macOS DMG builder (Nuitka-based): [`builddmgnuitka.py`](builddmgnuitka.py:1)
+- macOS DMG builder (Nuitka-based): [`builddmg.py`](builddmg.py:1)
 
 

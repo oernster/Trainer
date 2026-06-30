@@ -7,8 +7,7 @@ Handles dialog setup, appearance, and basic properties.
 import logging
 import sys
 from PySide6.QtWidgets import QApplication
-from PySide6.QtGui import QPixmap, QPainter, QIcon, QFont
-from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
 
 logger = logging.getLogger(__name__)
 
@@ -56,34 +55,19 @@ class DialogSetupManager:
         self._setup_dialog_icon()
     
     def _setup_dialog_icon(self):
-        """Setup dialog icon using Unicode alarm clock emoji."""
+        """Setup dialog icon from the bundled Trainer icon assets."""
+        from src.utils.icon_resolver import get_app_icon_path
+
         try:
-            # Create a pixmap for the icon
-            pixmap = QPixmap(64, 64)
-            pixmap.fill(Qt.GlobalColor.transparent)
-            
-            # Paint the emoji onto the pixmap
-            painter = QPainter(pixmap)
-            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            
-            # Set up font for emoji
-            font = QFont()
-            font.setPointSize(48)
-            painter.setFont(font)
-            painter.setPen(Qt.GlobalColor.black)
-            
-            # Draw the alarm clock emoji centered
-            painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, "⏰")
-            painter.end()
-            
-            # Create icon and set it
-            icon = QIcon(pixmap)
-            self.dialog.setWindowIcon(icon)
-            
-            logger.debug("Dialog icon set using Unicode alarm clock emoji")
-            
+            path = get_app_icon_path()
+            if path:
+                self.dialog.setWindowIcon(QIcon(str(path)))
+                logger.debug("Dialog icon set from %s", path)
+            else:
+                logger.warning("No dialog icon asset found, using default")
+
         except Exception as e:
-            logger.warning(f"Failed to create emoji dialog icon: {e}")
+            logger.warning(f"Failed to set dialog icon: {e}")
             # Fallback to parent window icon if available
             if hasattr(self.dialog.parent_window, 'windowIcon') and self.dialog.parent_window:
                 try:

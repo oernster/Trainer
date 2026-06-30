@@ -1,0 +1,42 @@
+Trainer Installer - Licence Notice
+==================================
+
+This installer is a small convenience program that deploys Trainer to a
+per-user location on your PC, creates optional shortcuts and registers the
+application so it can be removed again from "Apps & features". It is not the
+application itself.
+
+The Application
+---------------
+
+The bundled application, Trainer (Train times with integrated weather
+forecasting and astronomical events), is licensed under the GNU General Public
+License, version 3.0 (GPL-3.0). The full text of that licence is provided
+alongside this installer in the LICENSE file and can also be viewed from the
+installer's "Licence (GPL-3.0)" button. Trainer also bundles PySide6 (Qt for
+Python), which is licensed under the LGPL-3.0; the accompanying notices explain
+how to obtain its source. Your rights to use, study, share and modify Trainer
+are governed by those licences.
+
+  Copyright (c) 2026 Oliver Ernster
+
+The Installer
+-------------
+
+The installer program (this setup executable and its user interface) is
+provided as-is, without warranty of any kind, express or implied, including
+but not limited to the warranties of merchantability, fitness for a particular
+purpose and non-infringement. Its sole purpose is to install, repair, upgrade
+and uninstall Trainer on a single user's Windows profile. It requires no
+administrator rights, makes no system-wide changes and writes only under the
+current user's account.
+
+In no event shall the author be liable for any claim, damages or other
+liability arising from, out of or in connection with the installer or its use.
+
+Removal
+-------
+
+You can remove Trainer at any time from Windows "Apps & features" or by running
+this installer again and choosing Uninstall. Your settings are kept unless you
+explicitly ask for them to be removed.

@@ -243,3 +243,6 @@ packaging/
 
 # macOS: DMG (builddmg.py)
 *.dmg
+
+# Local scratch (conceptual release notes, not shipped)
+NOTES.md

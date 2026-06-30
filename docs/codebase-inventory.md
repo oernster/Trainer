@@ -72,8 +72,13 @@ Synthetic train determinism: [`python.TrainDataService._build_deterministic_rng(
 
 ## 4) Repository tooling (non-runtime)
 
-This repository contains a small number of developer-oriented helper scripts.
+This repository contains a small number of developer-oriented helper scripts. All read
+the version from [`version.py`](version.py:1) and bundle `src/data` plus `assets/`.
 
+- Icon set generator (one master `trainer.png` to all platform assets): [`generate_icons.py`](generate_icons.py:1)
+- Windows standalone build (Nuitka): [`buildexe.py`](buildexe.py:1)
+- Windows installer build (themed per-user installer): [`buildinstaller.py`](buildinstaller.py:1)
+- Linux Flatpak build and clean: [`build_flatpak.sh`](build_flatpak.sh:1), [`clean_flatpak.sh`](clean_flatpak.sh:1)
 - macOS DMG builder (Nuitka-based): [`builddmg.py`](builddmg.py:1)
 
 

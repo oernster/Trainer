@@ -64,6 +64,9 @@ This produces:
 - **Troubleshooting** (docs/TROUBLESHOOTING.md)
 
 ### Technical Documentation
+- **Architecture** (ARCHITECTURE.md) invariants-first overview of the layering and build
+- **Development and Build Guide** (DEVELOPMENT-README.md) setup, tests and per-OS packaging
+- **Testing Guide** (TESTING.md) the coverage gate and how to run and extend the suite
 - **Development Guide** (docs/DEVELOPMENT.md)
 - **Architecture Overview** (docs/architecture.md)
 - **UI Architecture** (docs/ui-architecture.md)

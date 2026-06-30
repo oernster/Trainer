@@ -12,8 +12,6 @@ A modern PySide6 desktop application that displays real-time train departure inf
 ![Architecture](https://img.shields.io/badge/architecture-SOLID%20OOP-brightgreen.svg)
 
 ## Screenshots
-<img width="895" height="853" src="https://github.com/user-attachments/assets/141d3def-2efd-479d-90cd-01b9d2eedc05" />
-<img width="745" height="581" src="https://github.com/user-attachments/assets/06b6e1f3-49da-41ea-9fc6-af7a7e48df8b" />
 
 ## Quick Start
 

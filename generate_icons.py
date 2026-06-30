@@ -35,6 +35,17 @@ ICO_SIZES = (16, 24, 32, 48, 64, 128, 256)
 # The canonical badge size used by code paths that want one PNG.
 CANONICAL_PNG_SIZE = 256
 
+# Fraction of the square canvas the solid artwork should occupy along its
+# longest axis. The remainder is a uniform transparent margin. Keeping the
+# glyph close to the edge (matching typical Windows app icons) is what stops it
+# rendering small on the taskbar next to icons that fill their canvas.
+CONTENT_FILL_RATIO = 0.88
+
+# Alpha (0-255) above which a pixel counts as solid artwork when measuring the
+# crop box. Faint anti-alias fringes, glows and drop shadows fall below this, so
+# a soft halo around the glyph does not defeat the trim.
+ALPHA_TRIM_THRESHOLD = 8
+
 ICO_NAME = "trainer.ico"
 ICNS_NAME = "trainer.icns"
 CANONICAL_PNG_NAME = "trainer_icon.png"
@@ -42,22 +53,36 @@ CANONICAL_PNG_NAME = "trainer_icon.png"
 RESAMPLE = Image.Resampling.LANCZOS
 
 
+def _trim_to_square(img: Image.Image) -> Image.Image:
+    """Trim the transparent border and re-pad to a square canvas.
+
+    The opaque content is scaled (via the surrounding margin, not by resampling)
+    to fill ``CONTENT_FILL_RATIO`` of the canvas along its longest axis, so the
+    visible glyph is as large as the standard icon margin allows.
+    """
+    alpha = img.split()[-1]
+    solid = alpha.point(lambda v: 255 if v > ALPHA_TRIM_THRESHOLD else 0)
+    bbox = solid.getbbox()
+    if bbox is None:
+        return img
+    content = img.crop(bbox)
+    content_w, content_h = content.size
+    side = round(max(content_w, content_h) / CONTENT_FILL_RATIO)
+    canvas = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    offset = ((side - content_w) // 2, (side - content_h) // 2)
+    canvas.paste(content, offset, content)
+    return canvas
+
+
 def _load_master() -> Image.Image:
-    """Load the master PNG as a square RGBA image."""
+    """Load the master PNG as a tightly-framed square RGBA image."""
     if not MASTER_PNG.exists():
         print(f"Error: master icon not found: {MASTER_PNG}")
         print("Place a square (ideally 1024x1024) trainer.png at the repo root.")
         raise SystemExit(1)
 
     img = Image.open(MASTER_PNG).convert("RGBA")
-    width, height = img.size
-    if width != height:
-        side = min(width, height)
-        left = (width - side) // 2
-        top = (height - side) // 2
-        img = img.crop((left, top, left + side, top + side))
-        print(f"  Master was not square; centre-cropped to {side}x{side}.")
-    return img
+    return _trim_to_square(img)
 
 
 def _resized(master: Image.Image, size: int) -> Image.Image:

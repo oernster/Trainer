@@ -35,8 +35,8 @@ inside `build_flatpak.sh`.
 
 `version.py` is the single source of truth. `__version__` and `__version_info__` there
 drive the app, the packaging metadata and the `--version` CLI output. Nothing else
-hardcodes a version. Bump both fields together (a minor bump resets the patch to 0,
-e.g. 5.0.3 then 5.1.0). The version single-source-of-truth is enforced by
+hardcodes a version. Bump both fields together (a minor bump resets the patch to 0).
+The version single-source-of-truth is enforced by
 `tests/test_version_single_source_of_truth.py`.
 
 ## Running the tests

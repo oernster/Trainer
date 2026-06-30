@@ -16,8 +16,10 @@ from src.utils.icon_resolver import get_app_icon_png_path, get_app_icon_path
 
 logger = logging.getLogger(__name__)
 
-# Size of the application icon badge drawn on the splash, in device-independent px.
-SPLASH_ICON_PX = 72
+# Splash dimensions and icon badge size, in device-independent pixels.
+SPLASH_WIDTH = 400
+SPLASH_HEIGHT = 300
+SPLASH_ICON_PX = 96
 
 
 class TrainerSplashScreen(QSplashScreen):
@@ -29,8 +31,13 @@ class TrainerSplashScreen(QSplashScreen):
 
     def __init__(self):
         """Initialize the splash screen."""
-        # Create a blank pixmap for the base splash screen
-        pixmap = QPixmap(400, 300)
+        # Build the base pixmap at the screen's device pixel ratio so the splash
+        # and its icon render at the correct physical size, and stay crisp, on
+        # high-DPI displays such as macOS Retina and fractional-scaled Linux.
+        screen = QApplication.primaryScreen()
+        self._dpr = screen.devicePixelRatio() if screen else 1.0
+        pixmap = QPixmap(round(SPLASH_WIDTH * self._dpr), round(SPLASH_HEIGHT * self._dpr))
+        pixmap.setDevicePixelRatio(self._dpr)
         pixmap.fill(Qt.GlobalColor.transparent)
 
         super().__init__(pixmap, Qt.WindowType.WindowStaysOnTopHint)
@@ -79,19 +86,24 @@ class TrainerSplashScreen(QSplashScreen):
         pass
 
     def _load_icon_pixmap(self):
-        """Load the application icon as a scaled pixmap, or None if unavailable."""
-        icon_path = get_app_icon_png_path(SPLASH_ICON_PX) or get_app_icon_path()
+        """Load the application icon as a scaled, DPI-aware pixmap, or None."""
+        # Pick a source PNG large enough for the device-pixel target so the icon
+        # is downscaled (crisp), not upscaled, on high-DPI displays.
+        target = round(SPLASH_ICON_PX * self._dpr)
+        icon_path = get_app_icon_png_path(target) or get_app_icon_path()
         if icon_path is None:
             return None
         pixmap = QPixmap(str(icon_path))
         if pixmap.isNull():
             return None
-        return pixmap.scaled(
-            SPLASH_ICON_PX,
-            SPLASH_ICON_PX,
+        scaled = pixmap.scaled(
+            target,
+            target,
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
+        scaled.setDevicePixelRatio(self._dpr)
+        return scaled
 
     def paintEvent(self, event):
         """Custom paint event to draw the splash screen content."""
@@ -112,9 +124,13 @@ class TrainerSplashScreen(QSplashScreen):
         icon_rect = self.rect().adjusted(0, center_y - 90, 0, center_y - 40)
         if self._icon_pixmap is not None and not self._icon_pixmap.isNull():
             center = icon_rect.center()
+            # The pixmap carries a device pixel ratio, so its on-screen size is
+            # the device-independent size; centre using that, not the raw pixels.
+            logical_w = self._icon_pixmap.width() / self._icon_pixmap.devicePixelRatio()
+            logical_h = self._icon_pixmap.height() / self._icon_pixmap.devicePixelRatio()
             painter.drawPixmap(
-                center.x() - self._icon_pixmap.width() // 2,
-                center.y() - self._icon_pixmap.height() // 2,
+                int(center.x() - logical_w / 2),
+                int(center.y() - logical_h / 2),
                 self._icon_pixmap,
             )
         else:

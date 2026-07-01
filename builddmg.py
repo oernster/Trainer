@@ -80,6 +80,10 @@ class BuildConfig:
     icon_path: Path = Path("assets/trainer_icon_1024.png")
     include_data_dir_src_data: str = "src/data=src/data"
     include_data_dir_assets: str = "assets=assets"
+    # Ship the root VERSION file (single source of truth) beside the binary in
+    # Contents/MacOS, so version.py reads the real version instead of the dev
+    # sentinel at runtime.
+    include_data_file_version: str = "VERSION=VERSION"
     output_dir: Path = Path("dist_macos_arm64")
     staging_dir: Path = Path("staging_macos_arm64")
     background_path: Path = Path("dmg_background.png")
@@ -319,6 +323,28 @@ def _verify_app_bundle_data(cfg: BuildConfig, app_bundle: Path) -> None:
         )
 
 
+def _verify_version_file(app_bundle: Path) -> None:
+    """Fail-fast: the VERSION file must be bundled beside the binary.
+
+    version.py resolves the version from this file at runtime via
+    ``__compiled__.containing_dir``; without it the app reports the dev
+    sentinel (0.0.0-dev). Catch that packaging regression at build time.
+    """
+
+    candidates = [
+        app_bundle / "Contents" / "MacOS" / "VERSION",
+        app_bundle / "Contents" / "Resources" / "VERSION",
+    ]
+    for path in candidates:
+        if path.is_file() and path.read_text(encoding="utf-8").strip():
+            print(f"Verified bundled VERSION file: {path}")
+            return
+    raise RuntimeError(
+        "VERSION file not found in built app bundle. Expected one of:\n"
+        + "\n".join(f"- {p}" for p in candidates)
+    )
+
+
 def _ensure_background_image(path: Path) -> None:
     """Create a simple DMG background image if Pillow is available.
 
@@ -422,6 +448,7 @@ def _nuitka_cmd(cfg: BuildConfig, *, icon_path: Path) -> list[str]:
         "--include-package=src",
         f"--include-data-dir={cfg.include_data_dir_src_data}",
         f"--include-data-dir={cfg.include_data_dir_assets}",
+        f"--include-data-file={cfg.include_data_file_version}",
         f"--output-dir={cfg.output_dir}",
         str(cfg.entrypoint),
     ]
@@ -458,6 +485,7 @@ def build_app_bundle(cfg: BuildConfig) -> Path:
 
     # Fail fast if data wasn't actually packaged.
     _verify_app_bundle_data(cfg, target_app)
+    _verify_version_file(target_app)
 
     # Write a marker file to distinguish this from legacy DMG builds.
     _write_nuitka_build_marker(target_app)

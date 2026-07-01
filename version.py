@@ -38,11 +38,23 @@ def _version_file_candidates() -> list:
     if bundle_dir:
         candidates.append(Path(bundle_dir) / "VERSION")
 
-    # Frozen executable directory (generic packaged fallback).
-    if getattr(sys, "frozen", False):
-        candidates.append(Path(sys.executable).resolve().parent / "VERSION")
+    # Directory of the running executable. Nuitka does not set ``sys.frozen``,
+    # so this is checked unconditionally: on a Nuitka macOS app bundle
+    # ``sys.executable`` is ``Contents/MacOS/Trainer`` (VERSION sits beside it),
+    # and on Windows it is the standalone exe dir. In a dev run this points at
+    # the Python interpreter dir, which simply has no VERSION and is skipped.
+    try:
+        exe_dir = Path(sys.executable).resolve().parent
+        candidates.append(exe_dir / "VERSION")
+        # macOS app bundle: data may land in Contents/Resources rather than
+        # Contents/MacOS depending on the packager.
+        if exe_dir.name == "MacOS":
+            candidates.append(exe_dir.parent / "Resources" / "VERSION")
+    except (OSError, ValueError):
+        pass
 
-    # Development checkout: VERSION sits next to this module at the repo root.
+    # Development checkout (and Flatpak, which runs from source): VERSION sits
+    # next to this module.
     candidates.append(Path(__file__).resolve().parent / "VERSION")
 
     return candidates

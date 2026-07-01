@@ -190,7 +190,7 @@ modules:
     buildsystem: simple
     build-commands:
       - install -d /app
-      - cp -r main.py src version.py assets LICENSE licenses /app/
+      - cp -r main.py src version.py VERSION assets LICENSE licenses /app/
       - install -Dm755 packaging/trainer-launcher.sh /app/bin/${CMD}
       - install -Dm644 packaging/${APP_ID}.desktop /app/share/applications/${APP_ID}.desktop
       - install -Dm644 packaging/${APP_ID}.metainfo.xml /app/share/metainfo/${APP_ID}.metainfo.xml

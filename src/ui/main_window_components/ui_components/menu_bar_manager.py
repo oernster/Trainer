@@ -93,7 +93,7 @@ class MenuBarManager:
 
         # Apply menu bar styling
         self.apply_menu_bar_styling()
-        
+
         return self.menubar
     
     def apply_menu_bar_styling(self) -> None:

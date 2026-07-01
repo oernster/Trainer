@@ -25,8 +25,10 @@ Nuitka notes:
 
 Trainer differs from Fulcrum in three ways that are reflected below:
 
-1. The version is read from version.py (__version__), not a VERSION file, and
-   there is no stamp_version step to run.
+1. The single source of truth for the version is the root VERSION file.
+   version.py reads it, this script inherits it through __version__, and the
+   file is bundled beside the executable so the frozen app reads the same
+   value. There is no stamp_version step to run.
 2. Trainer is single-licensed GPL-3.0 (PySide6 is LGPL but Trainer is not
    dual-licensed), so a single LICENSE plus the PySide6 LGPL notices ship,
    rather than Fulcrum's split GPL/LGPL pair.
@@ -69,6 +71,9 @@ ENTRY_SCRIPT = PROJECT_ROOT / "main.py"
 ICON_FILE = PROJECT_ROOT / "assets" / "trainer.ico"
 LICENSE_FILE = PROJECT_ROOT / "LICENSE"
 LICENSES_DIR = PROJECT_ROOT / "licenses"
+# Single source of truth for the version; shipped beside the exe so the frozen
+# app reads the same value version.py resolves in a dev checkout.
+VERSION_FILE = PROJECT_ROOT / "VERSION"
 
 # Data directories bundled into the standalone tree. The offline-data resolver
 # (src.utils.data_path_resolver) finds src/data relative to the executable in
@@ -109,7 +114,18 @@ TRUTHY_VALUES = {"1", "true", "yes", "on"}
 
 
 def read_version() -> str:
-    """Return the project version from version.py, or a safe default."""
+    """Return the project version from the root VERSION file.
+
+    The VERSION file is the single source of truth. version.py reads the same
+    file, so ``__version__`` is used only as a fallback if the file cannot be
+    read directly at build time.
+    """
+    try:
+        text = VERSION_FILE.read_text(encoding="utf-8").strip()
+        if text:
+            return text
+    except OSError:
+        pass
     return __version__ or DEFAULT_VERSION
 
 
@@ -232,6 +248,14 @@ def build_exe() -> int:
             print(
                 f"[buildexe] WARNING: data dir not found at {source}; skipping."
             )
+
+    # Ship the VERSION file at the bundle root so version.py reads the same
+    # single source of truth at runtime as it does in a dev checkout.
+    if VERSION_FILE.exists():
+        nuitka_args.append(f"--include-data-file={VERSION_FILE}=VERSION")
+        print(f"[buildexe] Bundling data file: {VERSION_FILE} -> VERSION")
+    else:
+        print(f"[buildexe] WARNING: VERSION not found at {VERSION_FILE}.")
 
     # Ship the GPL-3.0 LICENSE so the in-app Help can show the app licence.
     if LICENSE_FILE.exists():

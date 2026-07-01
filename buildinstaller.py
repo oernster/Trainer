@@ -25,8 +25,9 @@ the zip on deploy to restore the exe and its DLLs.
 Trainer is single-licensed GPL-3.0 (PySide6 is LGPL but Trainer is not
 dual-licensed), so a single LICENSE plus the PySide6 LGPL notices and the
 installer-wrapper INSTALLER_LICENSE ship, rather than Fulcrum's split GPL/LGPL
-pair. The version is read from version.py (__version__), not a VERSION file,
-and there is no stamp_version step to run.
+pair. The single source of truth for the version is the root VERSION file;
+version.py reads it and this script reads it directly, so there is no
+stamp_version step to run.
 """
 
 from __future__ import annotations
@@ -59,6 +60,8 @@ LICENSE_FILE = PROJECT_ROOT / "LICENSE"
 LICENSES_DIR = PROJECT_ROOT / "licenses"
 INSTALLER_LICENSE_FILE = PROJECT_ROOT / "INSTALLER_LICENSE"
 ICON_FILE = PROJECT_ROOT / "assets" / "trainer.ico"
+# Single source of truth for the version, read directly at build time.
+VERSION_FILE = PROJECT_ROOT / "VERSION"
 
 # The PySide6 LGPL notices staged into the payload and shipped beside the
 # installer binary so the licence buttons can show them without unpacking.
@@ -99,7 +102,18 @@ UNLINK_DELAY_SECONDS = 0.15
 
 
 def read_version() -> str:
-    """Return the project version from version.py, or a safe default."""
+    """Return the project version from the root VERSION file.
+
+    The VERSION file is the single source of truth. version.py reads the same
+    file, so ``__version__`` is used only as a fallback if the file cannot be
+    read directly at build time.
+    """
+    try:
+        text = VERSION_FILE.read_text(encoding="utf-8").strip()
+        if text:
+            return text
+    except OSError:
+        pass
     return __version__ or DEFAULT_VERSION
 
 

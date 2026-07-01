@@ -2,13 +2,80 @@
 Version information for Trainer application.
 Author: Oliver Ernster
 
-Centralized version management for the entire application including
-weather integration features and build system information.
+Centralized version and application metadata.
+
+The single source of truth for the release number is the ``VERSION`` file at
+the repository root; nothing in this module hardcodes a version string. The
+runtime reads that file (dev checkout, Nuitka standalone, or PyInstaller), and
+the build scripts inherit the same value through ``__version__``. Everything
+below ``__version__`` is app metadata (providers, features, about text), not a
+second version source.
 """
 
+import sys
+from pathlib import Path
+
+# Sentinel used when the VERSION file cannot be located (e.g. partial checkout).
+_DEV_VERSION = "0.0.0-dev"
+
+
+def _version_file_candidates() -> list:
+    """Possible locations of the root VERSION file (dev and packaged)."""
+    candidates = []
+
+    # Nuitka standalone: bundled top-level data files sit beside the binary.
+    try:
+        import __compiled__  # type: ignore
+
+        containing_dir = getattr(__compiled__, "containing_dir", None)
+        if containing_dir:
+            candidates.append(Path(containing_dir) / "VERSION")
+    except Exception:
+        pass
+
+    # PyInstaller onefile unpack dir, if ever built that way.
+    bundle_dir = getattr(sys, "_MEIPASS", None)
+    if bundle_dir:
+        candidates.append(Path(bundle_dir) / "VERSION")
+
+    # Frozen executable directory (generic packaged fallback).
+    if getattr(sys, "frozen", False):
+        candidates.append(Path(sys.executable).resolve().parent / "VERSION")
+
+    # Development checkout: VERSION sits next to this module at the repo root.
+    candidates.append(Path(__file__).resolve().parent / "VERSION")
+
+    return candidates
+
+
+def _read_version() -> str:
+    """Read the version string from the root VERSION file (frozen-aware)."""
+    for path in _version_file_candidates():
+        try:
+            text = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if text:
+            return text
+    return _DEV_VERSION  # pragma: no cover - VERSION is always present in real builds
+
+
+def _parse_version_info(version: str) -> tuple:
+    """Turn '5.1.4' (or '5.1.4-dev') into a (major, minor, patch) tuple."""
+    parts = []
+    for component in version.split("-")[0].split(".")[:3]:
+        try:
+            parts.append(int(component))
+        except ValueError:
+            parts.append(0)
+    while len(parts) < 3:
+        parts.append(0)
+    return tuple(parts)
+
+
 # Core application information
-__version__ = "5.1.3"  # Patch bump
-__version_info__ = (5, 1, 3)
+__version__ = _read_version()
+__version_info__ = _parse_version_info(__version__)
 __app_name__ = "Trainer"
 __app_display_name__ = "Trainer - Train Times with Weather Integration & Astronomical Events"
 __train_settings_title__ = "Train Settings"

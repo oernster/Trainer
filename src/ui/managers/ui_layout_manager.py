@@ -19,6 +19,9 @@ from .ui_layout_styles import header_button_stylesheet, menu_bar_stylesheet
 
 logger = logging.getLogger(__name__)
 
+# GitHub releases page opened by Help > Check for Updates.
+RELEASES_URL = "https://github.com/oernster/Trainer/releases"
+
 
 class UILayoutManager:
     """
@@ -308,8 +311,9 @@ class UILayoutManager:
     
     def setup_menu_bar(self) -> None:
         """Setup application menu bar."""
-        from PySide6.QtGui import QAction, QKeySequence
-        
+        from PySide6.QtGui import QAction, QKeySequence, QDesktopServices
+        from PySide6.QtCore import QUrl
+
         # Ensure we're using the proper QMainWindow menu bar
         menubar = self.main_window.menuBar()
 
@@ -350,6 +354,15 @@ class UILayoutManager:
         about_action.setStatusTip("About this application")
         about_action.triggered.connect(self.main_window.show_about_dialog)
         help_menu.addAction(about_action)
+
+        check_updates_action = QAction("Check for &Updates", self.main_window)
+        check_updates_action.setStatusTip(
+            "Check for the latest Trainer releases on GitHub"
+        )
+        check_updates_action.triggered.connect(
+            lambda: QDesktopServices.openUrl(QUrl(RELEASES_URL))
+        )
+        help_menu.addAction(check_updates_action)
 
         # Apply menu bar styling
         self.apply_menu_bar_styling(menubar)
